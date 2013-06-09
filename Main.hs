@@ -3,7 +3,7 @@ module Main where
 
 import Control.Monad.State
 
-import Data.Traversable
+import qualified Data.Traversable
 
 import qualified Data.Map as Map
 
@@ -29,8 +29,9 @@ main = withInit [InitEverything] $ do
   sWall <- sprite "wall"
   sFloor <- sprite "floor"
   sPlayer <- Data.Traversable.sequence $ Map.fromSet (dirSprite "player") Dir.allSet
-  sMark <- sprite "mark"
+  -- sMark <- sprite "mark"
   sEnemy <- sprite "enemy"
+  sTargets <- mapM (sprite . ("mark-" ++)) ["red"]
   let defs = Draw.Defs { Draw.surface = screen
                        , Draw.areaW = screenW
                        , Draw.areaH = screenH
@@ -38,7 +39,7 @@ main = withInit [InitEverything] $ do
                        , Draw.spriteFloor = sFloor
                        , Draw.spritesPlayer = sPlayer
                        , Draw.spriteEnemy = sEnemy
-                       , Draw.spriteMark = sMark
+                       , Draw.spriteTargets = sTargets
                        }
   let game = Game { ticks = 0
                   , player = Actor (14 * 16, 25 * 16 + 8) Dir.LEFT
@@ -58,10 +59,11 @@ play defs = eventLoop
           checkEvent event
           where 
             checkEvent (NoEvent) = do
-              let (_, newGame) = runState step game 
+              let (output, newGame) = runState step game 
               Draw.level defs (level game)
               mapM_ (\en -> Draw.enemy defs en (level game)) (enemies newGame) 
               Draw.player defs (player newGame) (level newGame)
+              mapM_ (Draw.mark defs 0) (Map.elems $ targets output)
               SDL.flip (Draw.surface defs)
               eventLoop newGame
 

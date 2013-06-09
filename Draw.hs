@@ -1,5 +1,5 @@
 
-module Draw (Defs(..), level, player, enemy) where
+module Draw (Defs(..), level, player, enemy, mark) where
 
 import qualified Data.Map as Map
 
@@ -16,9 +16,9 @@ data Defs = Defs { surface :: Surface
                  , areaH :: Int
                  , spriteWall :: Surface
                  , spriteFloor :: Surface
-                 , spriteMark :: Surface
                  , spritesPlayer :: Map.Map Direction Surface
                  , spriteEnemy :: Surface
+                 , spriteTargets :: [Surface]
                  } deriving (Show)
 
 
@@ -54,6 +54,11 @@ actor defs ac sprite lev = do
         dest = surface defs
         --(x, y) = Actor.pos ac
         --t = (x `div` tileSize, y `div` tileSize)
+
+
+mark :: Defs -> Int -> Point -> IO Bool
+mark defs n p = blitSurface sprite Nothing (surface defs) (tileRect p)
+  where sprite = spriteTargets defs !! n
 
 
 level :: Defs -> Level -> IO Bool

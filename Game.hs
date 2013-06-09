@@ -3,6 +3,8 @@ module Game where
 
 import Control.Monad.State
 
+import qualified Data.Map as Map
+
 import Base
 import Level
 import Actor
@@ -18,7 +20,8 @@ data Game = Game { ticks :: Integer
                  } deriving (Show)
 
 
-data Output = Output { }
+data Output = Output { targets :: Map.Map Actor Point
+                     }
 
 
 setNextTurn :: Direction -> Game -> Game 
@@ -46,7 +49,8 @@ step = do
              , enemies = movedEnemies
              }
 
-  return Output {}
+  return Output { targets = Map.singleton (head movedEnemies) (toTile $ pos movedPlr)
+                }
 
 
 updateEnemies :: Level -> Actor -> [Actor] -> [Actor]
