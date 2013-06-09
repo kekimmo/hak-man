@@ -34,6 +34,7 @@ main = withInit [InitEverything] $ do
   let typeSet = Set.fromList enemyTypes
   sEnemies <- Data.Traversable.sequence $ Map.fromSet (sprite . ("enemy-" ++) . show) typeSet
   sTargets <- Data.Traversable.sequence $ Map.fromSet (sprite . ("mark-" ++) . show) typeSet
+  sEnemyDirs <- Data.Traversable.sequence $ Map.fromSet (dirSprite "enemy-direction") Dir.allSet
   let defs = Draw.Defs { Draw.surface = screen
                        , Draw.areaW = screenW
                        , Draw.areaH = screenH
@@ -42,6 +43,7 @@ main = withInit [InitEverything] $ do
                        , Draw.spritesPlayer = sPlayer
                        , Draw.spriteEnemies = sEnemies
                        , Draw.spriteTargets = sTargets
+                       , Draw.spriteEnemyDirs = sEnemyDirs
                        }
   let game = Game { ticks = 0
                   , player = Actor (14 * 16, 25 * 16 + 8) Dir.LEFT

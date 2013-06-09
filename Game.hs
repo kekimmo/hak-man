@@ -45,7 +45,7 @@ step = do
   let targets = findTargets turnedPlr (enemies game)
 
   let movedEnemies = if even $ ticks game
-                       then updateEnemies (level game) movedPlr (enemies game)
+                       then updateEnemies (level game) targets (enemies game)
                        else enemies game
   
   put $ game { ticks = ticks game + 1
@@ -78,14 +78,14 @@ scatterTarget INKY = (27, 0)
 scatterTarget CLYDE = (0, 33) 
 
 
-updateEnemies :: Level -> Actor -> Enemies -> Enemies
-updateEnemies lev plr ens = movedEnemies
+updateEnemies :: Level -> Map.Map EnemyType Point -> Enemies -> Enemies
+updateEnemies lev targets ens = movedEnemies
   where 
-        turnedEnemies = Map.map turnEnemy ens 
+        turnedEnemies = Map.mapWithKey turnEnemy ens 
         movedEnemies = Map.map (moveActor lev) turnedEnemies
-        applyAI en = turn (decideTurn lev (toTile . pos $ plr) en) en 
-        turnEnemy en = if atJunction en
-                         then applyAI en
+        applyAI eType en = turn (decideTurn lev (targets Map.! eType) en) en 
+        turnEnemy eType en = if atJunction en
+                         then applyAI eType en
                          else en
 
 

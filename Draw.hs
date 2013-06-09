@@ -19,6 +19,7 @@ data Defs = Defs { surface :: Surface
                  , spritesPlayer :: Map.Map Direction Surface
                  , spriteEnemies :: Map.Map EnemyType Surface
                  , spriteTargets :: Map.Map EnemyType Surface
+                 , spriteEnemyDirs :: Map.Map Direction Surface
                  } deriving (Show)
 
 
@@ -28,8 +29,10 @@ player defs ac = actor defs ac sprite
 
 
 enemy :: Defs -> EnemyType -> Actor.Actor -> Level -> IO Bool
-enemy defs eType ac = actor defs ac sprite
-  where sprite = spriteEnemies defs Map.! eType
+enemy defs eType ac lev = do actor defs ac baseSprite lev
+                             actor defs ac directionSprite lev
+  where baseSprite = spriteEnemies defs Map.! eType
+        directionSprite = spriteEnemyDirs defs Map.! Actor.dir ac
  
 
 actor :: Defs -> Actor.Actor -> Surface -> Level -> IO Bool
