@@ -38,7 +38,7 @@ actor defs ac sprite lev = do
   if ox > 0 || oy > 0
     then blitSurface sprite srcRect2 dest destRect2
     else return True
-  blitSurface (spriteMark defs) Nothing dest (tileRect t)
+  --blitSurface (spriteMark defs) Nothing dest (tileRect t)
   where 
         dims@(w, h) = mul tileSize $ dimensions lev
         (cx, cy) = wrapActor dims . Actor.corner $ ac
@@ -52,8 +52,8 @@ actor defs ac sprite lev = do
                                 (if oy > 0 then 0 else cy)
                                 0 0
         dest = surface defs
-        (x, y) = Actor.pos ac
-        t = (x `div` tileSize, y `div` tileSize)
+        --(x, y) = Actor.pos ac
+        --t = (x `div` tileSize, y `div` tileSize)
 
 
 level :: Defs -> Level -> IO Bool

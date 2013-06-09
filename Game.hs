@@ -21,11 +21,8 @@ data Game = Game { ticks :: Integer
 data Output = Output { }
 
 
-setNextTurn :: Direction -> State Game Output
-setNextTurn d = do
-  game <- get
-  put $ game { nextTurn = d }
-  return Output {}
+setNextTurn :: Direction -> Game -> Game 
+setNextTurn d game = game { nextTurn = d }
 
 
 step :: State Game Output

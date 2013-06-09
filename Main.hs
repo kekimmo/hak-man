@@ -72,7 +72,7 @@ play defs = eventLoop
               SDLK_UP -> trn Dir.UP
               SDLK_DOWN -> trn Dir.DOWN
               _ -> eventLoop game
-              where trn d = eventLoop $ execState (setNextTurn d) game
+              where trn d = eventLoop $ setNextTurn d game
 
             checkEvent (Quit) = return ()
 
