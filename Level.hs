@@ -53,7 +53,11 @@ wrap lev (x, y) = (x `mod` w, y `mod` h)
 
 neighbors :: Point -> Level -> [Point]
 neighbors p lev
-  | inRange bnds (swap p) = map (wrap lev . delta 1) Dir.all
+  | inRange bnds (swap p) = map (wrap lev . add p . delta 1) Dir.all
   | otherwise = error "Out of bounds"
   where bnds = bounds . tiles $ lev
+
+
+neighbor :: Level -> Point -> Direction -> Point
+neighbor lev p d = wrap lev . add p . delta 1 $ d
 

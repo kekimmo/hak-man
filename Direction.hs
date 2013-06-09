@@ -3,10 +3,10 @@ module Direction where
 
 import qualified Data.Set as Set
 
-data Direction = RIGHT | UP | LEFT | DOWN deriving (Show, Eq, Ord)
+data Direction = UP | LEFT | DOWN | RIGHT deriving (Show, Eq, Ord)
 
 all :: [Direction]
-all = [RIGHT, UP, LEFT, DOWN]
+all = [UP, LEFT, DOWN, RIGHT]
 
 allSet :: Set.Set Direction 
 allSet = Set.fromList Direction.all

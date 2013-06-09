@@ -29,17 +29,20 @@ main = withInit [InitEverything] $ do
   sFloor <- sprite "floor"
   sPlayer <- Data.Traversable.sequence $ Map.fromSet (dirSprite "player") Dir.allSet
   sMark <- sprite "mark"
+  sEnemy <- sprite "enemy"
   let defs = Draw.Defs { Draw.surface = screen
                        , Draw.areaW = screenW
                        , Draw.areaH = screenH
                        , Draw.spriteWall = sWall
                        , Draw.spriteFloor = sFloor
                        , Draw.spritesPlayer = sPlayer
+                       , Draw.spriteEnemy = sEnemy
                        , Draw.spriteMark = sMark
                        }
   let game = Game { player = Actor (14 * 16, 25 * 16 + 8) Dir.LEFT
                   , level = lev
                   , nextTurn = Dir.LEFT
+                  , enemies = [Actor (1 * tileSize + 8, 4 * tileSize + 9) Dir.DOWN]
                   }
 
   play defs game
@@ -55,7 +58,8 @@ play defs = eventLoop
             checkEvent (NoEvent) = do
               newGame <- step NoInput game
               Draw.level defs (level newGame)
-              Draw.actor defs (level newGame) (player newGame)
+              mapM_ (\en -> Draw.enemy defs en (level newGame)) (enemies newGame) 
+              Draw.player defs (player newGame) (level newGame)
               SDL.flip (Draw.surface defs)
               eventLoop newGame
 

@@ -1,5 +1,5 @@
 
-module Draw (Defs(..), level, actor) where
+module Draw (Defs(..), level, player, enemy) where
 
 import Control.Monad
 
@@ -20,11 +20,22 @@ data Defs = Defs { surface :: Surface
                  , spriteFloor :: Surface
                  , spriteMark :: Surface
                  , spritesPlayer :: Map.Map Direction Surface
+                 , spriteEnemy :: Surface
                  } deriving (Show)
 
 
-actor :: Defs -> L.Level -> Actor.Actor -> IO Bool
-actor defs lev ac = do
+player :: Defs -> Actor.Actor -> L.Level -> IO Bool
+player defs ac = actor defs ac sprite
+  where sprite = spritesPlayer defs Map.! Actor.dir ac
+
+
+enemy :: Defs -> Actor.Actor -> L.Level -> IO Bool
+enemy defs ac = actor defs ac sprite
+  where sprite = spriteEnemy defs
+ 
+
+actor :: Defs -> Actor.Actor -> Surface -> L.Level -> IO Bool
+actor defs ac sprite lev = do
   blitSurface sprite srcRect1 dest destRect1
   if ox > 0 || oy > 0
     then blitSurface sprite srcRect2 dest destRect2
@@ -43,7 +54,6 @@ actor defs lev ac = do
                                 (if oy > 0 then 0 else cy)
                                 0 0
         dest = surface defs
-        sprite = spritesPlayer defs Map.! Actor.dir ac
         (x, y) = Actor.pos ac
         t = (x `div` tileSize, y `div` tileSize)
 
