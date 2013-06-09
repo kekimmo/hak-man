@@ -39,7 +39,7 @@ game defs lev = eventLoop
 
         checkEvent (KeyDown (Keysym key _ _)) = case key of
           SDLK_ESCAPE -> pushEvent Quit 
-          _ -> return ()
+          _ -> eventLoop
 
         checkEvent (Quit) = return ()
 
