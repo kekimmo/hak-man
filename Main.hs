@@ -3,22 +3,25 @@ module Main where
 
 import Control.Monad
 
-import qualified Level as L
-import qualified Draw 
 import Graphics.UI.SDL as SDL
 import qualified Graphics.UI.SDL.Image as SDL_Image
+
+import qualified Level as L
+import qualified Draw 
 
 
 main :: IO ()
 main = withInit [InitEverything] $ do
   lev <- L.load "lev" 
-  screen <- setVideoMode 800 600 32 [SWSurface]
+  let screenW = 800
+  let screenH = 600
+  screen <- setVideoMode screenW screenH 32 [SWSurface]
   sWall <- SDL_Image.load "sprites/wall.png"
   sFloor <- SDL_Image.load "sprites/floor.png"
   let defs = Draw.Defs { Draw.surface = screen
-                       , Draw.areaW = 800
-                       , Draw.areaH = 600
-                       , Draw.spriteSize = 32
+                       , Draw.areaW = screenW
+                       , Draw.areaH = screenH
+                       , Draw.tileSize = 16
                        , Draw.spriteWall = sWall
                        , Draw.spriteFloor = sFloor
                        }
