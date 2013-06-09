@@ -1,9 +1,10 @@
 
 module Main where
 
+import Control.Monad.State
+
 import Data.Traversable
 
-import qualified Data.Set as Set
 import qualified Data.Map as Map
 
 import Graphics.UI.SDL as SDL
@@ -39,7 +40,8 @@ main = withInit [InitEverything] $ do
                        , Draw.spriteEnemy = sEnemy
                        , Draw.spriteMark = sMark
                        }
-  let game = Game { player = Actor (14 * 16, 25 * 16 + 8) Dir.LEFT
+  let game = Game { ticks = 0
+                  , player = Actor (14 * 16, 25 * 16 + 8) Dir.LEFT
                   , level = lev
                   , nextTurn = Dir.LEFT
                   , enemies = [Actor (1 * tileSize + 8, 4 * tileSize + 9) Dir.DOWN]
@@ -56,20 +58,21 @@ play defs = eventLoop
           checkEvent event
           where 
             checkEvent (NoEvent) = do
-              newGame <- step NoInput game
-              Draw.level defs (level newGame)
-              mapM_ (\en -> Draw.enemy defs en (level newGame)) (enemies newGame) 
+              let (_, newGame) = runState step game 
+              Draw.level defs (level game)
+              mapM_ (\en -> Draw.enemy defs en (level game)) (enemies newGame) 
               Draw.player defs (player newGame) (level newGame)
               SDL.flip (Draw.surface defs)
               eventLoop newGame
 
             checkEvent (KeyDown (Keysym key _ _)) = case key of
               SDLK_ESCAPE -> pushEvent Quit 
-              SDLK_LEFT -> step (Turn Dir.LEFT) game >>= eventLoop 
-              SDLK_RIGHT -> step (Turn Dir.RIGHT) game >>= eventLoop 
-              SDLK_UP -> step (Turn Dir.UP) game >>= eventLoop 
-              SDLK_DOWN -> step (Turn Dir.DOWN) game >>= eventLoop 
+              SDLK_LEFT -> trn Dir.LEFT
+              SDLK_RIGHT -> trn Dir.RIGHT
+              SDLK_UP -> trn Dir.UP
+              SDLK_DOWN -> trn Dir.DOWN
               _ -> eventLoop game
+              where trn d = eventLoop $ execState (setNextTurn d) game
 
             checkEvent (Quit) = return ()
 

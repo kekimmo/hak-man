@@ -1,7 +1,7 @@
 
 module Base where
 
-import Level
+import Point
 
 
 actorSize :: Int
@@ -17,8 +17,10 @@ tileR :: Int
 tileR = tileSize `div` 2
 
 
+toTile :: Point -> Point
 toTile (x, y) = (x `div` tileSize, y `div` tileSize)
 
 
+wrapActor :: Point -> Point -> Point 
 wrapActor (w, h) (x, y) = (x `mod` w, y `mod` h)
 

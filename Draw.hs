@@ -1,8 +1,6 @@
 
 module Draw (Defs(..), level, player, enemy) where
 
-import Control.Monad
-
 import qualified Data.Map as Map
 
 import qualified Actor 

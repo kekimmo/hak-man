@@ -1,52 +1,66 @@
 
 module Game where
 
+import Control.Monad.State
+
 import Base
 import Level
 import Actor
 import Direction as Dir
 import Point
-import qualified Draw
 
 
-data Input = NoInput | Turn Direction
-
-
-data Game = Game { player :: Actor
+data Game = Game { ticks :: Integer
+                 , player :: Actor
                  , level :: Level
                  , nextTurn :: Direction
                  , enemies :: [Actor]
                  } deriving (Show)
 
 
-step :: Input -> Game -> IO Game
-step input game = do
+data Output = Output { }
+
+
+setNextTurn :: Direction -> State Game Output
+setNextTurn d = do
+  game <- get
+  put $ game { nextTurn = d }
+  return Output {}
+
+
+step :: State Game Output
+step = do
+  game <- get
   let plr = player game
 
-  let desiredDir = case input of
-                     NoInput -> (nextTurn game)
-                     Turn d -> d
-
-  let turnedPlr = if canTurn (level game) plr desiredDir 
-                    then turn desiredDir plr
+  let d = nextTurn game
+  let turnedPlr = if canTurn (level game) plr d
+                    then turn d plr
                     else plr 
 
   let movedPlr = moveActor (level game) turnedPlr
 
-  let applyAI en = turn (decideTurn (level game) (toTile . pos $ movedPlr) en) en 
-
-  let turnEnemy en = if atJunction en
-                       then applyAI en
-                       else en
-
-  let turnedEnemies = map turnEnemy (enemies game)
-
-  let movedEnemies = map (moveActor (level game)) turnedEnemies
+  let movedEnemies = if even $ ticks game
+                       then updateEnemies (level game) movedPlr (enemies game)
+                       else enemies game
   
-  return game { player = movedPlr
-              , nextTurn = desiredDir
-              , enemies = movedEnemies
-              }
+  put $ game { ticks = ticks game + 1
+             , player = movedPlr
+             , enemies = movedEnemies
+             }
+
+  return Output {}
+
+
+updateEnemies :: Level -> Actor -> [Actor] -> [Actor]
+updateEnemies lev plr ens = movedEnemies
+  where 
+        turnedEnemies = map turnEnemy ens 
+        movedEnemies = map (moveActor lev) turnedEnemies
+        applyAI en = turn (decideTurn lev (toTile . pos $ plr) en) en 
+        turnEnemy en = if atJunction en
+                         then applyAI en
+                         else en
 
 
 decideTurn :: Level -> Point -> Actor -> Direction
@@ -55,13 +69,18 @@ decideTurn lev target ac = snd . minimum $ scoredTurns
     scoredTurns = map score turns
     turns = allowedTurns lev ac
     junction = toTile (pos ac) 
-    score turn = (distance (neighbor lev junction turn) target, turn)
+    score d = (sqDistance (neighbor lev junction d) target, d)
 
 
-distance :: Point -> Point -> Int
-distance (a, b) (x, y) = round . sqrt . fromIntegral $ ((a - x) ^ 2 + (b - y) ^ 2)
+sqDistance :: Point -> Point -> Int
+sqDistance (a, b) (x, y) = square 
+  where dx = a - x :: Int
+        dy = b - y :: Int
+        square = dx*dx + dy*dy
 
 
+
+moveActor :: Level -> Actor -> Actor
 moveActor lev ac = if moveOk then move (wrapActor dims newPos) ac else ac 
   where 
   dims = mul tileSize $ dimensions lev
@@ -72,7 +91,7 @@ moveActor lev ac = if moveOk then move (wrapActor dims newPos) ac else ac
   moveOk = ok tx ty &&
            (x == tcx || (x < tcx && ok (tx - 1) ty) || (x > tcx && ok (tx + 1) ty)) &&
            (y == tcy || (y < tcy && ok tx (ty - 1)) || (y > tcy && ok tx (ty + 1)))
-  ok x y = walkable lev (wrap lev (x, y))
+  ok s t = walkable lev (wrap lev (s, t))
 
 
 allowedTurns :: Level -> Actor -> [Direction]
