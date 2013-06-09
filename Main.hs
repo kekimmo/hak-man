@@ -5,7 +5,7 @@ import Control.Monad
 
 import qualified Level as L
 import qualified Draw 
-import Graphics.UI.SDL
+import Graphics.UI.SDL as SDL
 import qualified Graphics.UI.SDL.Image as SDL_Image
 
 
@@ -34,5 +34,14 @@ game defs lev = eventLoop
 
         checkEvent (NoEvent) = do
           Draw.level defs lev
+          SDL.flip (Draw.surface defs)
           waitEvent >>= checkEvent
+
+        checkEvent (KeyDown (Keysym key _ _)) = case key of
+          SDLK_ESCAPE -> pushEvent Quit 
+          _ -> return ()
+
+        checkEvent (Quit) = return ()
+
+        checkEvent _ = eventLoop
 
