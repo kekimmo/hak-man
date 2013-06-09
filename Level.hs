@@ -2,16 +2,15 @@
 module Level where
 
 import Data.Array.Unboxed 
+import Data.Tuple
+
+import Direction as Dir
+import Point
 
 
-type Point = (Int, Int)
 type Tile = Bool
 type TileArray = UArray Point Tile
 data Level = Level { tiles :: TileArray }
-
-data Direction = RIGHT | UP | LEFT | DOWN deriving (Show, Eq)
-directions :: [Direction]
-directions = [RIGHT, UP, LEFT, DOWN]
 
 instance Show Level where
   show lev = fst $ fold cat ("", 0) lev
@@ -37,18 +36,24 @@ fold f acc lev = foldl g acc (assocs (tiles lev))
   where g acc_g ((y, x), tile) = f acc_g (x, y) tile
 
 
+dimensions :: Level -> Point
+dimensions lev = swap . add (1, 1) . snd . bounds . tiles $ lev
+
+
+walkable :: Level -> Point -> Bool
+walkable lev p = inRange (bounds t) levP && t ! levP
+  where t = tiles lev
+        levP = swap p
+
+
+wrap :: Level -> Point -> Point
+wrap lev (x, y) = (x `mod` w, y `mod` h)
+  where (w, h) = dimensions lev 
+
+
 neighbors :: Point -> Level -> [Point]
 neighbors p lev
-  | inRange bnds p = map (neighbor lev p) directions
+  | inRange bnds (swap p) = map (wrap lev . delta 1) Dir.all
   | otherwise = error "Out of bounds"
   where bnds = bounds . tiles $ lev
-
-
-neighbor :: Level -> Point -> Direction -> Point
-neighbor lev (x, y) dir = case dir of
-  LEFT  -> (if x > 0 then x - 1 else rightmost, y)
-  RIGHT -> (if x < rightmost then x + 1 else 0, y)
-  UP    -> (x, if y > 0 then y - 1 else downmost)
-  DOWN  -> (x, if y < downmost then y + 1 else 0)
-  where (downmost, rightmost) = snd . bounds . tiles $ lev
 
