@@ -13,18 +13,27 @@ import Point
 
 
 type Enemies = Map.Map EnemyType Actor
+data EnemyMode = SCATTER | CHASE | FRIGHTENED deriving (Show, Eq)
+
 
 data Game = Game { ticks :: Integer
                  , player :: Actor
                  , level :: Level
                  , nextTurn :: Direction
                  , enemies :: Enemies
+                 , phase :: Int
+                 , timeInPhase :: Integer
                  } deriving (Show)
 
 
+type Phase = (EnemyMode, Integer)
+phases :: [Phase]
+phases = [(SCATTER, 7 * 60)
+         ,(CHASE, 20 * 60)
+         ]
+
 data Output = Output { enemyTargets :: Map.Map EnemyType Point
                      }
-
 
 setNextTurn :: Direction -> Game -> Game 
 setNextTurn d game = game { nextTurn = d }
@@ -42,7 +51,18 @@ step = do
 
   let movedPlr = moveActor (level game) turnedPlr
 
-  let targets = findTargets turnedPlr (enemies game)
+  let phaseTime = timeInPhase game
+  let phaseTimeLimit = snd $ phases !! phase game
+  let changePhases = phaseTime > phaseTimeLimit
+  let newPhase = if changePhases
+                   then (phase game + 1) `rem` length phases
+                   else phase game
+  let eMode = fst $ phases !! newPhase
+
+  let ens = enemies game
+  let targets = case eMode of
+                  SCATTER -> Map.fromSet scatterTarget (Map.keysSet ens)
+                  CHASE -> findTargets turnedPlr ens
 
   let movedEnemies = if even $ ticks game
                        then updateEnemies (level game) targets (enemies game)
@@ -51,6 +71,8 @@ step = do
   put $ game { ticks = ticks game + 1
              , player = movedPlr
              , enemies = movedEnemies
+             , phase = newPhase
+             , timeInPhase = if changePhases then 1 else phaseTime + 1
              }
 
   return Output { enemyTargets = targets }
@@ -74,7 +96,7 @@ findTargets plr ens = Map.mapWithKey findTarget ens
 scatterTarget :: EnemyType -> Point
 scatterTarget BLINKY = (25, 0)
 scatterTarget PINKY = (2, 0)
-scatterTarget INKY = (27, 0)
+scatterTarget INKY = (27, 33)
 scatterTarget CLYDE = (0, 33) 
 
 

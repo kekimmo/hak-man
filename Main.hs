@@ -50,6 +50,8 @@ main = withInit [InitEverything] $ do
                   , level = lev
                   , nextTurn = Dir.LEFT
                   , enemies = Map.fromSet createEnemy typeSet
+                  , phase = 0
+                  , timeInPhase = 0
                   }
 
   play defs game
