@@ -12,15 +12,17 @@ import Direction as Dir
 import Point
 
 
+type Enemies = Map.Map EnemyType Actor
+
 data Game = Game { ticks :: Integer
                  , player :: Actor
                  , level :: Level
                  , nextTurn :: Direction
-                 , enemies :: [Actor]
+                 , enemies :: Enemies
                  } deriving (Show)
 
 
-data Output = Output { targets :: Map.Map Actor Point
+data Output = Output { enemyTargets :: Map.Map EnemyType Point
                      }
 
 
@@ -40,6 +42,8 @@ step = do
 
   let movedPlr = moveActor (level game) turnedPlr
 
+  let targets = findTargets turnedPlr (enemies game)
+
   let movedEnemies = if even $ ticks game
                        then updateEnemies (level game) movedPlr (enemies game)
                        else enemies game
@@ -49,15 +53,36 @@ step = do
              , enemies = movedEnemies
              }
 
-  return Output { targets = Map.singleton (head movedEnemies) (toTile $ pos movedPlr)
-                }
+  return Output { enemyTargets = targets }
 
 
-updateEnemies :: Level -> Actor -> [Actor] -> [Actor]
+findTargets :: Actor -> Enemies -> Map.Map EnemyType Point
+findTargets plr ens = Map.mapWithKey findTarget ens
+  where pTile = toTile $ pos plr
+        pDir = dir plr
+        errVec n = add pTile $ case pDir of
+          UP -> add (-n, 0) $ delta n UP
+          _ -> delta n pDir 
+        findTarget BLINKY _ = pTile
+        findTarget PINKY _ = errVec 4
+        findTarget INKY _ = add pTile . mul 2 $ vector blinkyTile (errVec 2)
+          where blinkyTile = toTile . pos $ ens Map.! BLINKY
+        findTarget CLYDE clyde = if dist > 8 then pTile else scatterTarget CLYDE 
+          where dist = tileDistance (toTile $ pos clyde) pTile 
+
+
+scatterTarget :: EnemyType -> Point
+scatterTarget BLINKY = (25, 0)
+scatterTarget PINKY = (2, 0)
+scatterTarget INKY = (27, 0)
+scatterTarget CLYDE = (0, 33) 
+
+
+updateEnemies :: Level -> Actor -> Enemies -> Enemies
 updateEnemies lev plr ens = movedEnemies
   where 
-        turnedEnemies = map turnEnemy ens 
-        movedEnemies = map (moveActor lev) turnedEnemies
+        turnedEnemies = Map.map turnEnemy ens 
+        movedEnemies = Map.map (moveActor lev) turnedEnemies
         applyAI en = turn (decideTurn lev (toTile . pos $ plr) en) en 
         turnEnemy en = if atJunction en
                          then applyAI en
@@ -71,6 +96,11 @@ decideTurn lev target ac = snd . minimum $ scoredTurns
     turns = allowedTurns lev ac
     junction = toTile (pos ac) 
     score d = (sqDistance (neighbor lev junction d) target, d)
+
+
+tileDistance :: Point -> Point -> Int
+tileDistance a b = round doubleSqrt 
+  where doubleSqrt = sqrt $ fromIntegral $ sqDistance a b :: Double
 
 
 sqDistance :: Point -> Point -> Int

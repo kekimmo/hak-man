@@ -24,3 +24,9 @@ toTile (x, y) = (x `div` tileSize, y `div` tileSize)
 wrapActor :: Point -> Point -> Point 
 wrapActor (w, h) (x, y) = (x `mod` w, y `mod` h)
 
+
+data EnemyType = BLINKY | PINKY | INKY | CLYDE deriving (Eq, Ord, Show)
+
+enemyTypes :: [EnemyType]
+enemyTypes = [BLINKY, PINKY, INKY, CLYDE]
+

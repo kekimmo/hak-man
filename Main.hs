@@ -6,6 +6,7 @@ import Control.Monad.State
 import qualified Data.Traversable
 
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 
 import Graphics.UI.SDL as SDL
 import qualified Graphics.UI.SDL.Image as SDL_Image
@@ -30,26 +31,34 @@ main = withInit [InitEverything] $ do
   sFloor <- sprite "floor"
   sPlayer <- Data.Traversable.sequence $ Map.fromSet (dirSprite "player") Dir.allSet
   -- sMark <- sprite "mark"
-  sEnemy <- sprite "enemy"
-  sTargets <- mapM (sprite . ("mark-" ++)) ["red"]
+  let typeSet = Set.fromList enemyTypes
+  sEnemies <- Data.Traversable.sequence $ Map.fromSet (sprite . ("enemy-" ++) . show) typeSet
+  sTargets <- Data.Traversable.sequence $ Map.fromSet (sprite . ("mark-" ++) . show) typeSet
   let defs = Draw.Defs { Draw.surface = screen
                        , Draw.areaW = screenW
                        , Draw.areaH = screenH
                        , Draw.spriteWall = sWall
                        , Draw.spriteFloor = sFloor
                        , Draw.spritesPlayer = sPlayer
-                       , Draw.spriteEnemy = sEnemy
+                       , Draw.spriteEnemies = sEnemies
                        , Draw.spriteTargets = sTargets
                        }
   let game = Game { ticks = 0
                   , player = Actor (14 * 16, 25 * 16 + 8) Dir.LEFT
                   , level = lev
                   , nextTurn = Dir.LEFT
-                  , enemies = [Actor (1 * tileSize + 8, 4 * tileSize + 9) Dir.DOWN]
+                  , enemies = Map.fromSet createEnemy typeSet
                   }
 
   play defs game
   return ()
+
+
+createEnemy :: EnemyType -> Actor
+createEnemy BLINKY = Actor (14 * tileSize, 13 * tileSize + 8) Dir.LEFT 
+createEnemy PINKY = Actor (16 * tileSize, 13 * tileSize + 8) Dir.LEFT
+createEnemy INKY = Actor (18 * tileSize, 13 * tileSize + 8) Dir.LEFT
+createEnemy CLYDE = Actor (12 * tileSize, 13 * tileSize + 8) Dir.LEFT
 
 
 play :: Draw.Defs -> Game -> IO ()
@@ -61,9 +70,13 @@ play defs = eventLoop
             checkEvent (NoEvent) = do
               let (output, newGame) = runState step game 
               Draw.level defs (level game)
-              mapM_ (\en -> Draw.enemy defs en (level game)) (enemies newGame) 
+              let drawEnemy (eType, en) = Draw.enemy defs eType en (level newGame)
+              let drawTarget (eType, t) = Draw.mark defs eType t (level newGame)
+              mapM_ drawEnemy $ Map.assocs $ enemies newGame
               Draw.player defs (player newGame) (level newGame)
-              mapM_ (Draw.mark defs 0) (Map.elems $ targets output)
+              mapM_ drawTarget $ Map.assocs $ enemyTargets output
+              -- print $ enemyTargets output Map.! INKY
+              
               SDL.flip (Draw.surface defs)
               eventLoop newGame
 

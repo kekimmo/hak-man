@@ -6,7 +6,7 @@ import qualified Data.Map as Map
 import qualified Actor 
 import Direction
 import Graphics.UI.SDL 
-import Level as L
+import Level
 import Point
 import Base
 
@@ -17,22 +17,22 @@ data Defs = Defs { surface :: Surface
                  , spriteWall :: Surface
                  , spriteFloor :: Surface
                  , spritesPlayer :: Map.Map Direction Surface
-                 , spriteEnemy :: Surface
-                 , spriteTargets :: [Surface]
+                 , spriteEnemies :: Map.Map EnemyType Surface
+                 , spriteTargets :: Map.Map EnemyType Surface
                  } deriving (Show)
 
 
-player :: Defs -> Actor.Actor -> L.Level -> IO Bool
+player :: Defs -> Actor.Actor -> Level -> IO Bool
 player defs ac = actor defs ac sprite
   where sprite = spritesPlayer defs Map.! Actor.dir ac
 
 
-enemy :: Defs -> Actor.Actor -> L.Level -> IO Bool
-enemy defs ac = actor defs ac sprite
-  where sprite = spriteEnemy defs
+enemy :: Defs -> EnemyType -> Actor.Actor -> Level -> IO Bool
+enemy defs eType ac = actor defs ac sprite
+  where sprite = spriteEnemies defs Map.! eType
  
 
-actor :: Defs -> Actor.Actor -> Surface -> L.Level -> IO Bool
+actor :: Defs -> Actor.Actor -> Surface -> Level -> IO Bool
 actor defs ac sprite lev = do
   blitSurface sprite srcRect1 dest destRect1
   if ox > 0 || oy > 0
@@ -56,13 +56,14 @@ actor defs ac sprite lev = do
         --t = (x `div` tileSize, y `div` tileSize)
 
 
-mark :: Defs -> Int -> Point -> IO Bool
-mark defs n p = blitSurface sprite Nothing (surface defs) (tileRect p)
-  where sprite = spriteTargets defs !! n
-
+mark :: Defs -> EnemyType -> Point -> Level -> IO Bool
+mark defs eType p lev = if within lev p then yes else no
+  where sprite = spriteTargets defs Map.! eType
+        yes = blitSurface sprite Nothing (surface defs) (tileRect p)
+        no = return True
 
 level :: Defs -> Level -> IO Bool
-level defs = L.fold (\acc p t -> acc >> tile defs p t) (return True) 
+level defs = Level.fold (\acc p t -> acc >> tile defs p t) (return True) 
 
 
 tile :: Defs -> Point -> Tile -> IO Bool 

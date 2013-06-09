@@ -36,6 +36,10 @@ fold f acc lev = foldl g acc (assocs (tiles lev))
   where g acc_g ((y, x), tile) = f acc_g (x, y) tile
 
 
+within :: Level -> Point -> Bool
+within lev p = inRange (bounds $ tiles lev) (swap p)
+
+
 dimensions :: Level -> Point
 dimensions lev = swap . add (1, 1) . snd . bounds . tiles $ lev
 
@@ -53,9 +57,8 @@ wrap lev (x, y) = (x `mod` w, y `mod` h)
 
 neighbors :: Point -> Level -> [Point]
 neighbors p lev
-  | inRange bnds (swap p) = map (wrap lev . add p . delta 1) Dir.all
+  | within lev p = map (wrap lev . add p . delta 1) Dir.all
   | otherwise = error "Out of bounds"
-  where bnds = bounds . tiles $ lev
 
 
 neighbor :: Level -> Point -> Direction -> Point
