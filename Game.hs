@@ -69,6 +69,12 @@ frighten :: Game -> Game
 frighten game = game { modeOrder = Just FRIGHTENED, frightenedTimeLeft = 7 * 60 }
 
 
+changeModes :: EnemyMode -> Game -> Game
+changeModes mo = updateEnemies (Map.map $ updateMode $ flip alter mo) 
+  where alter :: EnemyMode -> EnemyMode -> EnemyMode
+        alter _ to = to
+
+
 stepPlayer :: Game -> Game
 stepPlayer game = updatePlayer (pMove . pTurn) game
   where pMove = moveActor lev
@@ -86,12 +92,6 @@ stepChomp game = case chomped of
         chomped = Map.lookup p (pills game)
         alterGame DOT = id
         alterGame ENERGIZER = frighten 
-
-
-changeModes :: EnemyMode -> Game -> Game
-changeModes mo = updateEnemies (Map.map $ updateMode $ flip alter mo) 
-  where alter :: EnemyMode -> EnemyMode -> EnemyMode
-        alter _ to = to
 
 
 step :: State Game Output
@@ -113,9 +113,9 @@ step = do
   when (ft <= 1) $ do
     let mNewPhase = liftM2 changedPhase (gets phase) (gets timeInPhase)
     gotNewPhase <- liftM isJust mNewPhase
-    let changedPhases = gotNewPhase || frightEnds
     newPhase <- liftM2 fromMaybe (gets phase) mNewPhase 
     let eMode = fst $ phases !! newPhase
+    let changedPhases = gotNewPhase || frightEnds
     game <- get
     put $ game { phase = newPhase
                , timeInPhase = if changedPhases then 1 else timeInPhase game + 1
