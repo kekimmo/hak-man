@@ -12,5 +12,6 @@ data Event = Message String
            | AteEnemy EnemyType
            | AtePill Pill
            | EnergizerStreak Int
+           | GotPoints Event Integer
            deriving (Show, Eq)
 

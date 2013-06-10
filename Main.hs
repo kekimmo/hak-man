@@ -52,7 +52,9 @@ main = withInit [InitEverything] $ do
   let (levelW, levelH) = mul tileSize $ dimensions lev
   let border = 32
   let levelR = Rect 0 0 levelW levelH
-  let msgR = Rect (levelW + border) border (screenW - levelW - border * 2) (levelH - border * 2)
+  let msgBottom = screenH - border
+  let msgH = 5 * border
+  let msgR = Rect (levelW + border) (msgBottom - msgH) (screenW - levelW - border * 2) msgH
 
   let conf = Draw.DrawConfig { Draw.surface = screen
                              , Draw.font = font
@@ -91,8 +93,6 @@ main = withInit [InitEverything] $ do
                   }
 
   play conf ds game 
-  -- void $ TTF.closeFont font
-  -- void TTF.quit
   return ()
 
 
@@ -133,7 +133,10 @@ drawAll game output = do
   let lev = level game
       ens = enemies game
       formatEvent (t, ev) = "[" ++ show t ++ "] " ++ show ev
-      filteredEvents = filter ((/= AtePill DOT) . snd) $ events output
+      display (AtePill DOT) = False
+      display (GotPoints (AtePill DOT) _) = False
+      display _ = True
+      filteredEvents = filter (display . snd) $ events output
       fmtdEvents = map formatEvent filteredEvents
       drawPills = mapM_ (uncurry Draw.pill . swap) . Map.assocs . pills $ game
       drawPlayer = Draw.player (player game) lev

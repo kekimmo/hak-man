@@ -178,6 +178,21 @@ stepCollisions = do
                   event . EnergizerStreak . enemiesEaten $ fr 
 
 
+stepPoints :: [Event] -> State Game ()
+stepPoints = mapM_ event . mapMaybe process
+  where process ev = let mP = givePoints ev
+                     in case mP of
+                       (Just p) -> Just $ GotPoints ev $ fromIntegral p
+                       Nothing  -> Nothing
+
+
+givePoints :: Event -> Maybe Int 
+givePoints (AtePill DOT) = Just 10
+givePoints (AtePill ENERGIZER) = Just 100
+givePoints (EnergizerStreak n) = Just $ 100 * 2^n
+givePoints _ = Nothing
+
+
 step :: State Game Output
 step = do
   game <- get
@@ -239,7 +254,9 @@ step = do
   game <- get
   put $ game { ticks = ticks game + 1
              }
+
   evs <- dump
+  stepPoints . map snd $ evs
   
   return Output { enemyTargets = targets
                 , events = evs
