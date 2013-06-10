@@ -240,7 +240,7 @@ step = do
   put $ game { ticks = ticks game + 1
              }
   evs <- dump
-
+  
   return Output { enemyTargets = targets
                 , events = evs
                 }
