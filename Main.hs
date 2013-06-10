@@ -2,6 +2,8 @@
 module Main where
 
 import Control.Monad.State
+import Control.Monad.Reader
+import Data.Tuple
 
 import qualified Data.Traversable
 
@@ -10,6 +12,7 @@ import qualified Data.Set as Set
 
 import Graphics.UI.SDL as SDL
 import qualified Graphics.UI.SDL.Image as SDL_Image
+import Graphics.UI.SDL.TTF as TTF
 
 import Level as L
 import qualified Draw 
@@ -19,10 +22,15 @@ import Game
 import Base
 import Enemy
 import Event
+import Point
 
 
 main :: IO ()
 main = withInit [InitEverything] $ do
+  ttfOk <- TTF.init
+  unless ttfOk $
+    error "Failed to initialize fonts!"
+  font <- TTF.openFont "ttf/DejaVuSansMono.ttf" 12
   (lev, pls) <- L.load "lev" 
   let screenW = 800
   let screenH = 600
@@ -40,19 +48,29 @@ main = withInit [InitEverything] $ do
   sTarget <- Data.Traversable.sequence $ Map.fromSet (sprite . ("mark-" ++) . show) typeSet
   sEnemyDir <- Data.Traversable.sequence $ Map.fromSet (dirSprite "enemy-direction") Dir.allSet
   sPill <- Data.Traversable.sequence $ Map.fromSet (sprite . ("pill-" ++) . show) pillSet
-  let defs = Draw.Defs { Draw.surface = screen
-                       , Draw.areaW = screenW
-                       , Draw.areaH = screenH
-                       , Draw.spriteBg = sBg
-                       , Draw.spriteWall = sWall
-                       , Draw.spriteFloor = sFloor
-                       , Draw.spritesPlayer = sPlayer
-                       , Draw.spritesEnemy = sEnemy
-                       , Draw.spriteFrightened = sFrightened
-                       , Draw.spritesTarget = sTarget
-                       , Draw.spritesEnemyDir = sEnemyDir
-                       , Draw.spritesPill = sPill
-                       }
+
+  let (levelW, levelH) = mul tileSize $ dimensions lev
+  let border = 32
+  let levelR = Rect 0 0 levelW levelH
+  let msgR = Rect (levelW + border) border 128 128
+
+  let conf = Draw.DrawConfig { Draw.surface = screen
+                             , Draw.font = font
+                             , Draw.levelR = levelR
+                             , Draw.msgR = msgR 
+                             , Draw.spriteBg = sBg
+                             , Draw.spriteWall = sWall
+                             , Draw.spriteFloor = sFloor
+                             , Draw.spritesPlayer = sPlayer
+                             , Draw.spritesEnemy = sEnemy
+                             , Draw.spriteFrightened = sFrightened
+                             , Draw.spritesTarget = sTarget
+                             , Draw.spritesEnemyDir = sEnemyDir
+                             , Draw.spritesPill = sPill
+                             }
+
+  let ds = Draw.DrawState { Draw.cursorLine = 0 }
+
   let game = Game { ticks = 0
                   , player = Actor (14 * 16, 25 * 16 + 8) Dir.LEFT
                   , alive = True
@@ -72,7 +90,9 @@ main = withInit [InitEverything] $ do
                   , pendingEvents = []
                   }
 
-  play defs game
+  play conf ds game 
+  -- void $ TTF.closeFont font
+  -- void TTF.quit
   return ()
 
 
@@ -83,26 +103,16 @@ createEnemy PINKY = Actor (14 * tileSize, 13 * tileSize + 8) Dir.LEFT
 createEnemy CLYDE = Actor (16 * tileSize, 13 * tileSize + 8) Dir.LEFT
 
 
-play :: Draw.Defs -> Game -> IO ()
-play defs = eventLoop 
-  where eventLoop game = do
+play :: Draw.DrawConfig -> Draw.DrawState -> Game -> IO ()
+play conf = eventLoop 
+  where eventLoop ds game = do
           ev <- pollEvent
           checkEvent ev
           where 
             checkEvent (NoEvent) = do
-              let (output, newGame) = runState step game 
-              Draw.bg defs
-              -- Draw.level defs (level newGame)
-              mapM_ (\(p, pl) -> Draw.pill defs pl p) . Map.assocs . pills $ newGame
-              let drawEnemy (eType, en) = Draw.enemy defs eType en (level newGame)
-              let drawTarget (eType, t) = Draw.target defs eType t (level newGame)
-              mapM_ drawEnemy $ Map.assocs $ enemies newGame
-              Draw.player defs (player newGame) (level newGame)
-              mapM_ drawTarget $ Map.assocs $ enemyTargets output
-              mapM_ print . filter (/= AtePill DOT) $ events output
-              -- print $ enemyTargets output Map.! INKY
-              SDL.flip (Draw.surface defs)
-              eventLoop newGame
+              let (output, newGame) = runState step game
+              (_, newDs) <- Draw.run (drawAll newGame output) conf ds
+              eventLoop newDs newGame
 
             checkEvent (KeyDown (Keysym key _ _)) = case key of
               SDLK_ESCAPE -> pushEvent Quit 
@@ -110,11 +120,34 @@ play defs = eventLoop
               SDLK_RIGHT -> trn Dir.RIGHT
               SDLK_UP -> trn Dir.UP
               SDLK_DOWN -> trn Dir.DOWN
-              _ -> eventLoop game
-              where trn d = eventLoop $ setNextTurn d game
+              _ -> eventLoop ds game
+              where trn d = eventLoop ds $ setNextTurn d game
 
             checkEvent (Quit) = return ()
 
-            checkEvent _ = eventLoop game
+            checkEvent _ = eventLoop ds game
 
+
+drawAll :: Game -> Output -> Draw.Draw () 
+drawAll game output = do
+  let lev = level game
+      ens = enemies game
+      drawPills = mapM_ (uncurry Draw.pill . swap) . Map.assocs . pills $ game
+      drawPlayer = Draw.player (player game) lev
+      drawEnemy (eType, en) = Draw.enemy eType en lev
+      drawEnemies = mapM_ drawEnemy $ Map.assocs ens 
+      drawTarget (eType, t) = Draw.target eType t lev
+      drawTargets = mapM_ drawTarget $ Map.assocs $ enemyTargets output
+      drawMessages = Draw.messages . map show $ events output
+
+  Draw.bg
+  drawPills
+  drawPlayer
+  drawEnemies
+  drawTargets
+  drawMessages
+
+  conf <- ask
+  liftIO $ SDL.flip (Draw.surface conf)
+  liftIO $ mapM_ print . filter (/= AtePill DOT) $ events output
 
