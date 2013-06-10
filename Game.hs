@@ -14,7 +14,8 @@ import Point
 
 
 type Enemies = Map.Map EnemyType Actor
-data EnemyMode = SCATTER | CHASE | FRIGHTENED deriving (Show, Eq)
+data EnemyMode = SCATTER | CHASE | FRIGHTENED | RETURN deriving (Show, Eq)
+type EnemyModes = Map.Map EnemyType EnemyMode
 
 data Game = Game { ticks :: Integer
                  , player :: Actor
@@ -22,6 +23,7 @@ data Game = Game { ticks :: Integer
                  , pills :: Map.Map Point Pill
                  , nextTurn :: Direction
                  , enemies :: Enemies
+                 , enemyModes :: EnemyModes
                  , phase :: Int
                  , timeInPhase :: Integer
                  } deriving (Show)
@@ -64,10 +66,12 @@ step = do
                    else phase game
   let eMode = fst $ phases !! newPhase
 
+  let newEnemyModes = if changePhases
+                        then Map.map (changedMode eMode) (enemyModes game)
+                        else enemyModes game
+
   let ens = enemies game
-  let targets = case eMode of
-                  SCATTER -> Map.fromSet scatterTarget (Map.keysSet ens)
-                  CHASE -> findTargets turnedPlr ens
+  let targets = findTargets movedPlr newEnemyModes ens
 
   let movedEnemies = if even $ ticks game
                        then updateEnemies (level game) targets (enemies game)
@@ -75,9 +79,10 @@ step = do
   
   put $ game { ticks = ticks game + 1
              , player = movedPlr
-             , enemies = movedEnemies
-             , phase = newPhase
              , pills = (if isJust chomped then Map.delete pTile else id) $ pills game
+             , enemies = movedEnemies
+             , enemyModes = newEnemyModes
+             , phase = newPhase
              , timeInPhase = if changePhases then 1 else phaseTime + 1
              }
 
@@ -86,19 +91,27 @@ step = do
                 }
 
 
-findTargets :: Actor -> Enemies -> Map.Map EnemyType Point
-findTargets plr ens = Map.mapWithKey findTarget ens
-  where pTile = toTile $ pos plr
+changedMode :: EnemyMode -> EnemyMode -> EnemyMode
+changedMode newMode oldMode = if oldMode == FRIGHTENED then oldMode else newMode
+
+
+findTargets :: Actor -> EnemyModes -> Enemies -> Map.Map EnemyType Point
+findTargets plr enModes ens = Map.mapWithKey findTarget enModes
+  where findTarget enType SCATTER = scatterTarget enType
+        findTarget enType CHASE = chaseTarget enType 
+        findTarget _ _ = (0, 0)
+        pTile = toTile $ pos plr
         pDir = dir plr
         errVec n = add pTile $ case pDir of
           UP -> add (-n, 0) $ delta n UP
           _ -> delta n pDir 
-        findTarget BLINKY _ = pTile
-        findTarget PINKY _ = errVec 4
-        findTarget INKY _ = add pTile . mul 2 $ vector blinkyTile (errVec 2)
+        chaseTarget BLINKY = pTile
+        chaseTarget PINKY = errVec 4
+        chaseTarget INKY = add pTile . mul 2 $ vector blinkyTile (errVec 2)
           where blinkyTile = toTile . pos $ ens Map.! BLINKY
-        findTarget CLYDE clyde = if dist > 8 then pTile else scatterTarget CLYDE 
+        chaseTarget CLYDE = if dist > 8 then pTile else scatterTarget CLYDE 
           where dist = tileDistance (toTile $ pos clyde) pTile 
+                clyde = ens Map.! CLYDE
 
 
 scatterTarget :: EnemyType -> Point

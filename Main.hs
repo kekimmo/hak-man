@@ -36,7 +36,6 @@ main = withInit [InitEverything] $ do
   sEnemy <- Data.Traversable.sequence $ Map.fromSet (sprite . ("enemy-" ++) . show) typeSet
   sTarget <- Data.Traversable.sequence $ Map.fromSet (sprite . ("mark-" ++) . show) typeSet
   sEnemyDir <- Data.Traversable.sequence $ Map.fromSet (dirSprite "enemy-direction") Dir.allSet
-  let pillSet = Set.fromList [REGULAR, POWER]
   sPill <- Data.Traversable.sequence $ Map.fromSet (sprite . ("pill-" ++) . show) pillSet
   let defs = Draw.Defs { Draw.surface = screen
                        , Draw.areaW = screenW
@@ -56,6 +55,7 @@ main = withInit [InitEverything] $ do
                   , pills = pls
                   , nextTurn = Dir.LEFT
                   , enemies = Map.fromSet createEnemy typeSet
+                  , enemyModes = Map.fromSet (const SCATTER) typeSet
                   , phase = 0
                   , timeInPhase = 0
                   }

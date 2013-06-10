@@ -3,17 +3,24 @@ module Level where
 
 import Data.Array.Unboxed 
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Data.Tuple
 
 import Direction as Dir
 import Point
 
 
-data Pill = REGULAR | POWER deriving (Show, Eq, Ord)
+data Pill = DOT | ENERGIZER deriving (Show, Eq, Ord)
+pillSet :: Set.Set Pill
+pillSet = Set.fromList [DOT, ENERGIZER]
+
 type Pills = Map.Map Point Pill
+
 type Tile = Bool
 type TileArray = UArray Point Tile
+
 data Level = Level { tiles :: TileArray }
+
 
 instance Show Level where
   show lev = fst $ fold cat ("", 0) lev
@@ -35,8 +42,8 @@ load file = do
   where
     charToTile '#' = False
     charToTile _ = True
-    charToPill '.' = Just REGULAR
-    charToPill 'O' = Just POWER
+    charToPill '.' = Just DOT
+    charToPill 'O' = Just ENERGIZER
     charToPill _ = Nothing
 
 
