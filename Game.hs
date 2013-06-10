@@ -40,7 +40,7 @@ data Game = Game { ticks :: Integer
                  , frState :: FrightenedState
                  , modeOrder :: Maybe EnemyMode
                  , timeInPhase :: Integer
-                 , pendingEvents :: [Event]
+                 , pendingEvents :: [(Integer, Event)]
                  } deriving (Show)
 
 
@@ -52,7 +52,7 @@ phases = [(SCATTER, 7 * 60)
          ]
 
 data Output = Output { enemyTargets :: Map.Map EnemyType Point
-                     , events :: [Event]
+                     , events :: [(Integer, Event)]
                      }
 
 setNextTurn :: Direction -> Game -> Game 
@@ -108,14 +108,14 @@ setAlive a game = game { alive = a }
 
 
 addEvent :: Event -> Game -> Game
-addEvent e game = game { pendingEvents = pendingEvents game ++ [e] }
+addEvent e game = game { pendingEvents = pendingEvents game ++ [(ticks game, e)] }
 
 
 event :: Event -> State Game ()
 event = modify . addEvent
 
 
-dump :: State Game [Event]
+dump :: State Game [(Integer, Event)]
 dump = state $ \game -> (pendingEvents game, game { pendingEvents = [] })
 
 

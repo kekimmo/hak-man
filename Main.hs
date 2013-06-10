@@ -52,7 +52,7 @@ main = withInit [InitEverything] $ do
   let (levelW, levelH) = mul tileSize $ dimensions lev
   let border = 32
   let levelR = Rect 0 0 levelW levelH
-  let msgR = Rect (levelW + border) border 128 128
+  let msgR = Rect (levelW + border) border (screenW - levelW - border * 2) (levelH - border * 2)
 
   let conf = Draw.DrawConfig { Draw.surface = screen
                              , Draw.font = font
@@ -69,7 +69,7 @@ main = withInit [InitEverything] $ do
                              , Draw.spritesPill = sPill
                              }
 
-  let ds = Draw.DrawState { Draw.cursorLine = 0 }
+  let ds = Draw.DrawState { Draw.msgBuffer = [] }
 
   let game = Game { ticks = 0
                   , player = Actor (14 * 16, 25 * 16 + 8) Dir.LEFT
@@ -132,13 +132,16 @@ drawAll :: Game -> Output -> Draw.Draw ()
 drawAll game output = do
   let lev = level game
       ens = enemies game
+      formatEvent (t, ev) = "[" ++ show t ++ "] " ++ show ev
+      filteredEvents = filter ((/= AtePill DOT) . snd) $ events output
+      fmtdEvents = map formatEvent filteredEvents
       drawPills = mapM_ (uncurry Draw.pill . swap) . Map.assocs . pills $ game
       drawPlayer = Draw.player (player game) lev
       drawEnemy (eType, en) = Draw.enemy eType en lev
       drawEnemies = mapM_ drawEnemy $ Map.assocs ens 
       drawTarget (eType, t) = Draw.target eType t lev
       drawTargets = mapM_ drawTarget $ Map.assocs $ enemyTargets output
-      drawMessages = Draw.messages . map show $ events output
+      drawMessages = Draw.messages fmtdEvents 
 
   Draw.bg
   drawPills
@@ -149,5 +152,5 @@ drawAll game output = do
 
   conf <- ask
   liftIO $ SDL.flip (Draw.surface conf)
-  liftIO $ mapM_ print . filter (/= AtePill DOT) $ events output
+  liftIO $ mapM_ print fmtdEvents
 

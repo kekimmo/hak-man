@@ -33,7 +33,7 @@ data DrawConfig = DrawConfig { surface :: Surface
                              } deriving (Show)
 
 
-data DrawState = DrawState { cursorLine :: Int }
+data DrawState = DrawState { msgBuffer :: [String] }
 
 
 type Draw = ReaderT DrawConfig (StateT DrawState IO) 
@@ -58,13 +58,48 @@ player ac lev = do
 
 messages :: [String] -> Draw Bool
 messages [] = return True
-messages msgs = do
-  conf <- ask
+messages msgs = liftM and . mapM message $ msgs
+
+
+message :: String -> Draw Bool
+message "" = return True
+message msg = do
+  area <- asks msgR
+  fn <- asks font
+  dest <- asks surface
+  ds <- get
+  lineH <- liftIO $ TTF.fontLineSkip fn
+  buffer <- gets msgBuffer 
+  color <- liftIO $ mapRGB (surfaceGetPixelFormat dest) 0 0 50
+  let newBuffer = msg : buffer
+  put $ ds { msgBuffer = newBuffer }
+
+  let maxLines = rectH area `div` lineH
+  let visibleLines = reverse . take maxLines $ newBuffer
+
+  liftIO $ fillRect dest (Just area) color
+
+  let draws = zipWith (\i s -> text s (rectX area, rectY area + i * lineH)) [0..] visibleLines
+  liftM and $ sequence draws 
+
+
+text :: String -> Point -> Draw Bool
+text s p = do
   let color = Color 255 255 255
-  texture <- liftIO $ TTF.tryRenderUTF8Solid (font conf) (head msgs) color
-  liftIO $ if isJust texture
-    then blitSurface (fromJust texture) Nothing (surface conf) (Just $ msgR conf)
+  let (x, y) = p
+  let destRect = Just $ Rect x y 0 0 
+
+  dest <- asks surface
+  fn <- asks font
+  texture <- liftIO $ TTF.tryRenderUTF8Blended fn s color
+
+  success <- liftIO $ if isJust texture
+    then blitSurface (fromJust texture) Nothing dest destRect
     else return False
+  
+  liftIO $ maybe (return ()) freeSurface texture
+
+  return success
 
 
 enemy :: Enemy.EnemyType -> Enemy.Enemy -> Level -> Draw Bool
