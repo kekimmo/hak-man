@@ -9,6 +9,7 @@ import Graphics.UI.SDL
 import Level
 import Point
 import Base
+import qualified Enemy
 
 
 data Defs = Defs { surface :: Surface
@@ -19,6 +20,7 @@ data Defs = Defs { surface :: Surface
                  , spriteFloor :: Surface
                  , spritesPlayer :: Map.Map Direction Surface
                  , spritesEnemy :: Map.Map EnemyType Surface
+                 , spriteFrightened :: Surface
                  , spritesTarget :: Map.Map EnemyType Surface
                  , spritesEnemyDir :: Map.Map Direction Surface
                  , spritesPill :: Map.Map Pill Surface
@@ -34,10 +36,14 @@ player defs ac = actor defs ac sprite
   where sprite = spritesPlayer defs Map.! Actor.dir ac
 
 
-enemy :: Defs -> EnemyType -> Actor.Actor -> Level -> IO Bool
-enemy defs eType ac lev = do actor defs ac baseSprite lev
+enemy :: Defs -> EnemyType -> Enemy.Enemy -> Level -> IO Bool
+enemy defs eType en lev = do actor defs ac baseSprite lev
                              actor defs ac directionSprite lev
-  where baseSprite = spritesEnemy defs Map.! eType
+  where mo = Enemy.mode en
+        ac = Enemy.actor en
+        baseSprite = case mo of
+          Enemy.FRIGHTENED -> spriteFrightened defs
+          _                -> spritesEnemy defs Map.! eType
         directionSprite = spritesEnemyDir defs Map.! Actor.dir ac
 
 

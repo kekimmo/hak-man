@@ -17,6 +17,7 @@ import qualified Direction as Dir
 import Actor
 import Game
 import Base
+import Enemy
 
 
 main :: IO ()
@@ -34,6 +35,7 @@ main = withInit [InitEverything] $ do
   -- sMark <- sprite "mark"
   let typeSet = Set.fromList enemyTypes
   sEnemy <- Data.Traversable.sequence $ Map.fromSet (sprite . ("enemy-" ++) . show) typeSet
+  sFrightened <- sprite "enemy-frightened"
   sTarget <- Data.Traversable.sequence $ Map.fromSet (sprite . ("mark-" ++) . show) typeSet
   sEnemyDir <- Data.Traversable.sequence $ Map.fromSet (dirSprite "enemy-direction") Dir.allSet
   sPill <- Data.Traversable.sequence $ Map.fromSet (sprite . ("pill-" ++) . show) pillSet
@@ -45,6 +47,7 @@ main = withInit [InitEverything] $ do
                        , Draw.spriteFloor = sFloor
                        , Draw.spritesPlayer = sPlayer
                        , Draw.spritesEnemy = sEnemy
+                       , Draw.spriteFrightened = sFrightened
                        , Draw.spritesTarget = sTarget
                        , Draw.spritesEnemyDir = sEnemyDir
                        , Draw.spritesPill = sPill
@@ -58,6 +61,7 @@ main = withInit [InitEverything] $ do
                   , phase = 0
                   , timeInPhase = 0
                   , frightenedTimeLeft = 0
+                  , modeOrder = Nothing
                   }
 
   play defs game
@@ -84,10 +88,10 @@ play defs = eventLoop
               mapM_ (\(p, pl) -> Draw.pill defs pl p) . Map.assocs . pills $ newGame
               let drawEnemy (eType, en) = Draw.enemy defs eType en (level newGame)
               let drawTarget (eType, t) = Draw.target defs eType t (level newGame)
-              mapM_ drawEnemy $ Map.assocs $ Map.map actor $ enemies newGame
+              mapM_ drawEnemy $ Map.assocs $ enemies newGame
               Draw.player defs (player newGame) (level newGame)
               mapM_ drawTarget $ Map.assocs $ enemyTargets output
-              mapM_ print $ messages output
+              mapM_ putStrLn $ messages output
               -- print $ enemyTargets output Map.! INKY
               
               SDL.flip (Draw.surface defs)

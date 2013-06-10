@@ -2,7 +2,6 @@
 module Game where
 
 import Control.Monad.State
-import Control.Arrow
 import Data.Maybe
 
 import qualified Data.Map as Map
@@ -12,25 +11,10 @@ import Level
 import Actor
 import Direction as Dir
 import Point
-
-
-type Enemy = (EnemyMode, Actor) 
-
-mode :: Enemy -> EnemyMode
-mode = fst
-
-actor :: Enemy -> Actor
-actor = snd 
-
-updateMode :: (EnemyMode -> EnemyMode) -> Enemy -> Enemy
-updateMode = first 
-
-updateActor :: (Actor -> Actor) -> Enemy -> Enemy
-updateActor = second
+import Enemy
 
 
 type Enemies = Map.Map EnemyType Enemy
-data EnemyMode = SCATTER | CHASE | FRIGHTENED | RETURN deriving (Show, Eq)
 type EnemyModes = Map.Map EnemyType EnemyMode
 
 data Game = Game { ticks :: Integer
@@ -41,6 +25,7 @@ data Game = Game { ticks :: Integer
                  , enemies :: Enemies
                  , phase :: Int
                  , frightenedTimeLeft :: Int
+                 , modeOrder :: Maybe EnemyMode
                  , timeInPhase :: Integer
                  } deriving (Show)
 
@@ -80,6 +65,10 @@ removePill :: Point -> Game -> Game
 removePill p = updatePills (Map.delete p) 
 
 
+frighten :: Game -> Game
+frighten game = game { modeOrder = Just FRIGHTENED, frightenedTimeLeft = 7 * 60 }
+
+
 stepPlayer :: Game -> Game
 stepPlayer game = updatePlayer (pMove . pTurn) game
   where pMove = moveActor lev
@@ -92,28 +81,50 @@ stepPlayer game = updatePlayer (pMove . pTurn) game
 stepChomp :: Game -> Game
 stepChomp game = case chomped of
     Nothing  -> game
-    (Just DOT) -> removePill p game
-    (Just ENERGIZER) -> game
-    --(Just ENERGIZER) -> removePill p . frighten . game { frightenedTimeLeft = 7 * 60 }
+    (Just pl) -> removePill p . alterGame pl $ game
   where p = toTile $ pos $ player game
         chomped = Map.lookup p (pills game)
+        alterGame DOT = id
+        alterGame ENERGIZER = frighten 
+
+
+changeModes :: EnemyMode -> Game -> Game
+changeModes mo = updateEnemies (Map.map $ updateMode $ flip alter mo) 
+  where alter :: EnemyMode -> EnemyMode -> EnemyMode
+        alter _ to = to
 
 
 step :: State Game Output
 step = do
+  game <- get
+  put $ game { modeOrder = Nothing }
+
   modify stepPlayer
   modify stepChomp
 
-  let mNewPhase = liftM2 changedPhase (gets phase) (gets timeInPhase)
-  newPhase <- liftM2 fromMaybe (gets phase) mNewPhase 
-  changedPhases <- liftM isJust mNewPhase
+  game <- get
+  let ft = frightenedTimeLeft game
+  let frightEnds = ft == 1
+  put $ if ft > 0 then 
+    game { frightenedTimeLeft = ft - 1 }
+  else
+    game { timeInPhase = timeInPhase game + 1 }
 
-  let eMode = fst $ phases !! newPhase
+  when (ft <= 1) $ do
+    let mNewPhase = liftM2 changedPhase (gets phase) (gets timeInPhase)
+    gotNewPhase <- liftM isJust mNewPhase
+    let changedPhases = gotNewPhase || frightEnds
+    newPhase <- liftM2 fromMaybe (gets phase) mNewPhase 
+    let eMode = fst $ phases !! newPhase
+    game <- get
+    put $ game { phase = newPhase
+               , timeInPhase = if changedPhases then 1 else timeInPhase game + 1
+               , modeOrder = if changedPhases then Just eMode else Nothing
+               }
 
-  -- enModes <- gets enemyModes
-  -- let newEnemyModes = if changedPhases
-  --                       then Map.map (changedMode eMode) enModes
-  --                       else enModes 
+  order <- gets modeOrder
+  when (isJust order) $
+    modify $ changeModes (fromJust order)
 
   plr <- gets player
   ens <- gets enemies 
@@ -126,12 +137,11 @@ step = do
   
   game <- get
   put $ game { ticks = ticks game + 1
-             , phase = newPhase
-             , timeInPhase = if changedPhases then 1 else timeInPhase game + 1
              }
 
+  order <- gets modeOrder
   return Output { enemyTargets = targets
-                , messages = if changedPhases then [show eMode] else []
+                , messages = (if isJust order then [show $ fromJust order] else []) 
                 }
 
 
