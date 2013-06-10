@@ -57,7 +57,6 @@ player ac lev = do
 
 
 messages :: [String] -> Draw Bool
-messages [] = return True
 messages msgs = liftM and . mapM message $ msgs
 
 

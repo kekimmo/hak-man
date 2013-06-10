@@ -152,5 +152,5 @@ drawAll game output = do
 
   conf <- ask
   liftIO $ SDL.flip (Draw.surface conf)
-  liftIO $ mapM_ print fmtdEvents
+  liftIO $ mapM_ putStrLn fmtdEvents
 
