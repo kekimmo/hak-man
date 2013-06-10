@@ -25,11 +25,13 @@ data Game = Game { ticks :: Integer
                  , enemies :: Enemies
                  , enemyModes :: EnemyModes
                  , phase :: Int
+                 , frightenedTimeLeft :: Int
                  , timeInPhase :: Integer
                  } deriving (Show)
 
 
 type Phase = (EnemyMode, Integer)
+--phases :: Map.Map EnemyMode Integer
 phases :: [Phase]
 phases = [(SCATTER, 7 * 60)
          ,(CHASE, 20 * 60)
@@ -43,53 +45,73 @@ setNextTurn :: Direction -> Game -> Game
 setNextTurn d game = game { nextTurn = d }
 
 
+setPlayer :: Actor -> Game -> Game
+setPlayer plr game = game { player = plr }
+
+
+updatePlayer :: (Actor -> Actor) -> Game -> Game
+updatePlayer f game = game { player = f $ player game }
+
+
+updateEnemies :: (Enemies -> Enemies) -> Game -> Game
+updateEnemies f game = game { enemies = f $ enemies game }
+
+
 step :: State Game Output
 step = do
-  game <- get
-  let plr = player game
+  d <- gets nextTurn
+  lev <- gets level
+  plr <- gets player
+  when (canTurn lev plr d) $
+    modify $ updatePlayer (turn d)
+  
+  lev <- gets level
+  modify $ updatePlayer $ moveActor lev
 
-  let d = nextTurn game
-  let turnedPlr = if canTurn (level game) plr d
-                    then turn d plr
-                    else plr 
+  plr <- gets player
+  let pTile = toTile $ pos plr
+  pls <- gets pills
+  let chomped = Map.lookup pTile pls
 
-  let movedPlr = moveActor (level game) turnedPlr
+  let mNewPhase = liftM2 changedPhase (gets phase) (gets timeInPhase)
+  newPhase <- liftM2 fromMaybe (gets phase) mNewPhase 
+  changedPhases <- liftM isJust mNewPhase
 
-  let pTile = toTile $ pos movedPlr
-  let chomped = Map.lookup pTile (pills game)
-
-  let phaseTime = timeInPhase game
-  let phaseTimeLimit = snd $ phases !! phase game
-  let changePhases = phaseTime > phaseTimeLimit
-  let newPhase = if changePhases
-                   then (phase game + 1) `rem` length phases
-                   else phase game
   let eMode = fst $ phases !! newPhase
 
-  let newEnemyModes = if changePhases
-                        then Map.map (changedMode eMode) (enemyModes game)
-                        else enemyModes game
+  enModes <- gets enemyModes
+  let newEnemyModes = if changedPhases
+                        then Map.map (changedMode eMode) enModes
+                        else enModes 
 
-  let ens = enemies game
-  let targets = findTargets movedPlr newEnemyModes ens
+  ens <- gets enemies 
+  plr <- gets player
+  let targets = findTargets plr newEnemyModes ens
 
-  let movedEnemies = if even $ ticks game
-                       then updateEnemies (level game) targets (enemies game)
-                       else enemies game
+  t <- gets ticks
+  when (even t) $
+    modify $ updateEnemies $ refreshEnemies lev targets
   
+  game <- get
   put $ game { ticks = ticks game + 1
-             , player = movedPlr
              , pills = (if isJust chomped then Map.delete pTile else id) $ pills game
-             , enemies = movedEnemies
              , enemyModes = newEnemyModes
              , phase = newPhase
-             , timeInPhase = if changePhases then 1 else phaseTime + 1
+             , timeInPhase = if changedPhases then 1 else timeInPhase game + 1
              }
 
   return Output { enemyTargets = targets
-                , messages = if changePhases then [show eMode] else []
+                , messages = if changedPhases then [show eMode] else []
                 }
 
+
+changedPhase :: Int -> Integer -> Maybe Int
+changedPhase oldPhase phaseTime = if phaseTime > phaseTimeLimit
+                                    then Just newPhase
+                                    else Nothing
+  where phaseTimeLimit = snd $ phases !! oldPhase
+        newPhase = (oldPhase + 1) `rem` length phases
+                                  
 
 changedMode :: EnemyMode -> EnemyMode -> EnemyMode
 changedMode newMode oldMode = if oldMode == FRIGHTENED then oldMode else newMode
@@ -121,8 +143,8 @@ scatterTarget INKY = (27, 33)
 scatterTarget CLYDE = (0, 33) 
 
 
-updateEnemies :: Level -> Map.Map EnemyType Point -> Enemies -> Enemies
-updateEnemies lev targets ens = movedEnemies
+refreshEnemies :: Level -> Map.Map EnemyType Point -> Enemies -> Enemies
+refreshEnemies lev targets ens = movedEnemies
   where 
         turnedEnemies = Map.mapWithKey turnEnemy ens 
         movedEnemies = Map.map (moveActor lev) turnedEnemies
