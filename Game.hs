@@ -102,7 +102,8 @@ stepChomp game = case chomped of
         alterGame ENERGIZER = frighten 
 
 
-stepEnter enType t = do
+stepEnter :: EnemyType -> Point -> State Game () 
+stepEnter enType _ = do
   ens <- gets enemies
   let mustReverse = pendingReverse $ ens Map.! enType
   void . when mustReverse $
@@ -110,6 +111,7 @@ stepEnter enType t = do
   return ()
 
 
+stepCollisions :: State Game ()
 stepCollisions = do
   ens <- gets enemies
   plr <- gets player
@@ -230,11 +232,9 @@ refreshEnemies lev targets ens = movedEnemies
         turnedEnemies = Map.mapWithKey turnEnemy ens 
         movedEnemies = Map.map (updateActor $ moveActor lev) turnedEnemies
         applyAI eType en = turn (decideTurn lev (targets Map.! eType) en) en 
-        turnEnemy eType en = if atJunction ac
+        turnEnemy eType en = if atJunction (actor en)
                                then updateActor (applyAI eType) en
                                else en
-                             where ac = actor en
-                                   mo = mode en
 
 
 decideTurn :: Level -> Point -> Actor -> Direction
