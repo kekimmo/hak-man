@@ -54,10 +54,10 @@ main = withInit [InitEverything] $ do
                   , level = lev
                   , pills = pls
                   , nextTurn = Dir.LEFT
-                  , enemies = Map.fromSet createEnemy typeSet
-                  , enemyModes = Map.fromSet (const SCATTER) typeSet
+                  , enemies = Map.fromSet ((,) SCATTER . createEnemy) typeSet
                   , phase = 0
                   , timeInPhase = 0
+                  , frightenedTimeLeft = 0
                   }
 
   play defs game
@@ -84,7 +84,7 @@ play defs = eventLoop
               mapM_ (\(p, pl) -> Draw.pill defs pl p) . Map.assocs . pills $ newGame
               let drawEnemy (eType, en) = Draw.enemy defs eType en (level newGame)
               let drawTarget (eType, t) = Draw.target defs eType t (level newGame)
-              mapM_ drawEnemy $ Map.assocs $ enemies newGame
+              mapM_ drawEnemy $ Map.assocs $ Map.map actor $ enemies newGame
               Draw.player defs (player newGame) (level newGame)
               mapM_ drawTarget $ Map.assocs $ enemyTargets output
               mapM_ print $ messages output

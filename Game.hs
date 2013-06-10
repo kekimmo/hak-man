@@ -2,6 +2,7 @@
 module Game where
 
 import Control.Monad.State
+import Control.Arrow
 import Data.Maybe
 
 import qualified Data.Map as Map
@@ -13,7 +14,22 @@ import Direction as Dir
 import Point
 
 
-type Enemies = Map.Map EnemyType Actor
+type Enemy = (EnemyMode, Actor) 
+
+mode :: Enemy -> EnemyMode
+mode = fst
+
+actor :: Enemy -> Actor
+actor = snd 
+
+updateMode :: (EnemyMode -> EnemyMode) -> Enemy -> Enemy
+updateMode = first 
+
+updateActor :: (Actor -> Actor) -> Enemy -> Enemy
+updateActor = second
+
+
+type Enemies = Map.Map EnemyType Enemy
 data EnemyMode = SCATTER | CHASE | FRIGHTENED | RETURN deriving (Show, Eq)
 type EnemyModes = Map.Map EnemyType EnemyMode
 
@@ -23,7 +39,6 @@ data Game = Game { ticks :: Integer
                  , pills :: Pills
                  , nextTurn :: Direction
                  , enemies :: Enemies
-                 , enemyModes :: EnemyModes
                  , phase :: Int
                  , frightenedTimeLeft :: Int
                  , timeInPhase :: Integer
@@ -77,10 +92,11 @@ stepPlayer game = updatePlayer (pMove . pTurn) game
 stepChomp :: Game -> Game
 stepChomp game = case chomped of
     Nothing  -> game
-    (Just _) -> removePill p game
+    (Just DOT) -> removePill p game
+    (Just ENERGIZER) -> game
+    --(Just ENERGIZER) -> removePill p . frighten . game { frightenedTimeLeft = 7 * 60 }
   where p = toTile $ pos $ player game
         chomped = Map.lookup p (pills game)
-
 
 
 step :: State Game Output
@@ -94,14 +110,14 @@ step = do
 
   let eMode = fst $ phases !! newPhase
 
-  enModes <- gets enemyModes
-  let newEnemyModes = if changedPhases
-                        then Map.map (changedMode eMode) enModes
-                        else enModes 
+  -- enModes <- gets enemyModes
+  -- let newEnemyModes = if changedPhases
+  --                       then Map.map (changedMode eMode) enModes
+  --                       else enModes 
 
   plr <- gets player
   ens <- gets enemies 
-  let targets = findTargets plr newEnemyModes ens
+  let targets = findTargets plr ens
 
   t <- gets ticks
   lev <- gets level
@@ -110,7 +126,6 @@ step = do
   
   game <- get
   put $ game { ticks = ticks game + 1
-             , enemyModes = newEnemyModes
              , phase = newPhase
              , timeInPhase = if changedPhases then 1 else timeInPhase game + 1
              }
@@ -132,8 +147,8 @@ changedMode :: EnemyMode -> EnemyMode -> EnemyMode
 changedMode newMode oldMode = if oldMode == FRIGHTENED then oldMode else newMode
 
 
-findTargets :: Actor -> EnemyModes -> Enemies -> Map.Map EnemyType Point
-findTargets plr enModes ens = Map.mapWithKey findTarget enModes
+findTargets :: Actor -> Enemies -> Map.Map EnemyType Point
+findTargets plr ens = Map.mapWithKey findTarget . Map.map mode $ ens 
   where findTarget enType SCATTER = scatterTarget enType
         findTarget enType CHASE = chaseTarget enType 
         findTarget _ _ = (0, 0)
@@ -145,9 +160,9 @@ findTargets plr enModes ens = Map.mapWithKey findTarget enModes
         chaseTarget BLINKY = pTile
         chaseTarget PINKY = errVec 4
         chaseTarget INKY = add pTile . mul 2 $ vector blinkyTile (errVec 2)
-          where blinkyTile = toTile . pos $ ens Map.! BLINKY
+          where blinkyTile = toTile . pos $ actor $ ens Map.! BLINKY
         chaseTarget CLYDE = if dist > 8 then pTile else scatterTarget CLYDE 
-          where dist = tileDistance (toTile $ pos clyde) pTile 
+          where dist = tileDistance (toTile $ pos $ actor clyde) pTile 
                 clyde = ens Map.! CLYDE
 
 
@@ -162,10 +177,10 @@ refreshEnemies :: Level -> Map.Map EnemyType Point -> Enemies -> Enemies
 refreshEnemies lev targets ens = movedEnemies
   where 
         turnedEnemies = Map.mapWithKey turnEnemy ens 
-        movedEnemies = Map.map (moveActor lev) turnedEnemies
+        movedEnemies = Map.map (updateActor $ moveActor lev) turnedEnemies
         applyAI eType en = turn (decideTurn lev (targets Map.! eType) en) en 
-        turnEnemy eType en = if atJunction en
-                         then applyAI eType en
+        turnEnemy eType en@(mo, ac) = if atJunction ac
+                         then (mo, applyAI eType ac)
                          else en
 
 
