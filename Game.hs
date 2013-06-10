@@ -57,16 +57,18 @@ updateEnemies :: (Enemies -> Enemies) -> Game -> Game
 updateEnemies f game = game { enemies = f $ enemies game }
 
 
+stepPlayer :: Game -> Game
+stepPlayer game = updatePlayer (pMove . pTurn) game
+  where pMove = moveActor lev
+        pTurn = if canTurn lev plr d then turn d else id
+        lev = level game
+        plr = player game
+        d = nextTurn game
+
+
 step :: State Game Output
 step = do
-  d <- gets nextTurn
-  lev <- gets level
-  plr <- gets player
-  when (canTurn lev plr d) $
-    modify $ updatePlayer (turn d)
-  
-  lev <- gets level
-  modify $ updatePlayer $ moveActor lev
+  modify stepPlayer
 
   plr <- gets player
   let pTile = toTile $ pos plr
@@ -85,10 +87,10 @@ step = do
                         else enModes 
 
   ens <- gets enemies 
-  plr <- gets player
   let targets = findTargets plr newEnemyModes ens
 
   t <- gets ticks
+  lev <- gets level
   when (even t) $
     modify $ updateEnemies $ refreshEnemies lev targets
   
