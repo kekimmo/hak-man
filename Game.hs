@@ -20,7 +20,7 @@ type EnemyModes = Map.Map EnemyType EnemyMode
 data Game = Game { ticks :: Integer
                  , player :: Actor
                  , level :: Level
-                 , pills :: Map.Map Point Pill
+                 , pills :: Pills
                  , nextTurn :: Direction
                  , enemies :: Enemies
                  , enemyModes :: EnemyModes
@@ -57,6 +57,14 @@ updateEnemies :: (Enemies -> Enemies) -> Game -> Game
 updateEnemies f game = game { enemies = f $ enemies game }
 
 
+updatePills :: (Pills -> Pills) -> Game -> Game
+updatePills f game = game { pills = f $ pills game }
+
+
+removePill :: Point -> Game -> Game
+removePill p = updatePills (Map.delete p) 
+
+
 stepPlayer :: Game -> Game
 stepPlayer game = updatePlayer (pMove . pTurn) game
   where pMove = moveActor lev
@@ -66,14 +74,19 @@ stepPlayer game = updatePlayer (pMove . pTurn) game
         d = nextTurn game
 
 
+stepChomp :: Game -> Game
+stepChomp game = case chomped of
+    Nothing  -> game
+    (Just _) -> removePill p game
+  where p = toTile $ pos $ player game
+        chomped = Map.lookup p (pills game)
+
+
+
 step :: State Game Output
 step = do
   modify stepPlayer
-
-  plr <- gets player
-  let pTile = toTile $ pos plr
-  pls <- gets pills
-  let chomped = Map.lookup pTile pls
+  modify stepChomp
 
   let mNewPhase = liftM2 changedPhase (gets phase) (gets timeInPhase)
   newPhase <- liftM2 fromMaybe (gets phase) mNewPhase 
@@ -86,6 +99,7 @@ step = do
                         then Map.map (changedMode eMode) enModes
                         else enModes 
 
+  plr <- gets player
   ens <- gets enemies 
   let targets = findTargets plr newEnemyModes ens
 
@@ -96,7 +110,6 @@ step = do
   
   game <- get
   put $ game { ticks = ticks game + 1
-             , pills = (if isJust chomped then Map.delete pTile else id) $ pills game
              , enemyModes = newEnemyModes
              , phase = newPhase
              , timeInPhase = if changedPhases then 1 else timeInPhase game + 1
