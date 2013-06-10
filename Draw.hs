@@ -1,5 +1,5 @@
 
-module Draw (Defs(..), level, player, enemy, target, pill) where
+module Draw (Defs(..), bg, level, player, enemy, target, pill) where
 
 import qualified Data.Map as Map
 
@@ -14,6 +14,7 @@ import Base
 data Defs = Defs { surface :: Surface
                  , areaW :: Int
                  , areaH :: Int
+                 , spriteBg :: Surface
                  , spriteWall :: Surface
                  , spriteFloor :: Surface
                  , spritesPlayer :: Map.Map Direction Surface
@@ -22,6 +23,10 @@ data Defs = Defs { surface :: Surface
                  , spritesEnemyDir :: Map.Map Direction Surface
                  , spritesPill :: Map.Map Pill Surface
                  } deriving (Show)
+
+
+bg :: Defs -> IO Bool
+bg defs = blitSurface (spriteBg defs) Nothing (surface defs) (tileRect (0, 0))
 
 
 player :: Defs -> Actor.Actor -> Level -> IO Bool

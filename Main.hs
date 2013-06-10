@@ -27,6 +27,7 @@ main = withInit [InitEverything] $ do
   screen <- setVideoMode screenW screenH 32 [SWSurface]
   let sprite file = SDL_Image.load $ "sprites/" ++ file ++ ".png"
   let dirSprite file d = sprite $ file ++ "-" ++ show d
+  sBg <- sprite "level-2"
   sWall <- sprite "wall"
   sFloor <- sprite "floor"
   sPlayer <- Data.Traversable.sequence $ Map.fromSet (dirSprite "player") Dir.allSet
@@ -40,6 +41,7 @@ main = withInit [InitEverything] $ do
   let defs = Draw.Defs { Draw.surface = screen
                        , Draw.areaW = screenW
                        , Draw.areaH = screenH
+                       , Draw.spriteBg = sBg
                        , Draw.spriteWall = sWall
                        , Draw.spriteFloor = sFloor
                        , Draw.spritesPlayer = sPlayer
@@ -77,7 +79,8 @@ play defs = eventLoop
           where 
             checkEvent (NoEvent) = do
               let (output, newGame) = runState step game 
-              Draw.level defs (level newGame)
+              Draw.bg defs
+              -- Draw.level defs (level newGame)
               mapM_ (\(p, pl) -> Draw.pill defs pl p) . Map.assocs . pills $ newGame
               let drawEnemy (eType, en) = Draw.enemy defs eType en (level newGame)
               let drawTarget (eType, t) = Draw.target defs eType t (level newGame)
