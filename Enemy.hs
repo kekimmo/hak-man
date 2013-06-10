@@ -1,23 +1,30 @@
 
 module Enemy where
 
-import Control.Arrow
-
 import Actor
 
 
 data EnemyMode = SCATTER | CHASE | FRIGHTENED | RETURN deriving (Show, Eq)
-type Enemy = (EnemyMode, Actor) 
+data Enemy = Enemy { mode :: EnemyMode
+                   , actor :: Actor
+                   , pendingReverse :: Bool
+                   } deriving (Show)
 
-mode :: Enemy -> EnemyMode
-mode = fst
-
-actor :: Enemy -> Actor
-actor = snd 
+setMode :: EnemyMode -> Enemy -> Enemy
+setMode = updateMode . const 
 
 updateMode :: (EnemyMode -> EnemyMode) -> Enemy -> Enemy
-updateMode = first 
+updateMode f en = en { mode = f $ mode en }
 
 updateActor :: (Actor -> Actor) -> Enemy -> Enemy
-updateActor = second
+updateActor f en = en { actor = f $ actor en }
+
+setPendingReverse :: Bool -> Enemy -> Enemy
+setPendingReverse a en = en { pendingReverse = a }
+
+harmsPlayer :: EnemyMode -> Bool
+harmsPlayer SCATTER = True
+harmsPlayer CHASE = True
+harmsPlayer FRIGHTENED = False
+harmsPlayer RETURN = False
 

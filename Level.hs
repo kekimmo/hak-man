@@ -22,6 +22,10 @@ type TileArray = UArray Point Tile
 data Level = Level { tiles :: TileArray }
 
 
+houseEntrance :: Point
+houseEntrance = (13, 13)
+
+
 instance Show Level where
   show lev = fst $ fold cat ("", 0) lev
     where cat :: (String, Int) -> Point -> Tile -> (String, Int)

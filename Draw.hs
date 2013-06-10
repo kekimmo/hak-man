@@ -1,6 +1,8 @@
 
 module Draw (Defs(..), bg, level, player, enemy, target, pill) where
 
+import Control.Monad
+import Data.Maybe
 import qualified Data.Map as Map
 
 import qualified Actor 
@@ -37,13 +39,15 @@ player defs ac = actor defs ac sprite
 
 
 enemy :: Defs -> EnemyType -> Enemy.Enemy -> Level -> IO Bool
-enemy defs eType en lev = do actor defs ac baseSprite lev
+enemy defs eType en lev = do when (isJust baseSprite) $
+                               void $ actor defs ac (fromJust baseSprite) lev
                              actor defs ac directionSprite lev
   where mo = Enemy.mode en
         ac = Enemy.actor en
         baseSprite = case mo of
-          Enemy.FRIGHTENED -> spriteFrightened defs
-          _                -> spritesEnemy defs Map.! eType
+          Enemy.FRIGHTENED -> Just $ spriteFrightened defs
+          Enemy.RETURN     -> Nothing
+          _                -> Just $ spritesEnemy defs Map.! eType
         directionSprite = spritesEnemyDir defs Map.! Actor.dir ac
 
 

@@ -54,10 +54,14 @@ main = withInit [InitEverything] $ do
                        }
   let game = Game { ticks = 0
                   , player = Actor (14 * 16, 25 * 16 + 8) Dir.LEFT
+                  , alive = True
                   , level = lev
                   , pills = pls
                   , nextTurn = Dir.LEFT
-                  , enemies = Map.fromSet ((,) SCATTER . createEnemy) typeSet
+                  , enemies = Map.fromSet (\t -> Enemy { mode = SCATTER
+                                                       , actor = createEnemy t
+                                                       , pendingReverse = False
+                                                       }) typeSet
                   , phase = 0
                   , timeInPhase = 0
                   , frightenedTimeLeft = 0
@@ -93,7 +97,6 @@ play defs = eventLoop
               mapM_ drawTarget $ Map.assocs $ enemyTargets output
               mapM_ putStrLn $ messages output
               -- print $ enemyTargets output Map.! INKY
-              
               SDL.flip (Draw.surface defs)
               eventLoop newGame
 

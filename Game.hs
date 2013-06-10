@@ -3,6 +3,7 @@ module Game where
 
 import Control.Monad.State
 import Data.Maybe
+import Data.Foldable (sequence_)
 
 import qualified Data.Map as Map
 
@@ -19,6 +20,7 @@ type EnemyModes = Map.Map EnemyType EnemyMode
 
 data Game = Game { ticks :: Integer
                  , player :: Actor
+                 , alive :: Bool
                  , level :: Level
                  , pills :: Pills
                  , nextTurn :: Direction
@@ -70,9 +72,15 @@ frighten game = game { modeOrder = Just FRIGHTENED, frightenedTimeLeft = 7 * 60 
 
 
 changeModes :: EnemyMode -> Game -> Game
-changeModes mo = updateEnemies (Map.map $ updateMode $ flip alter mo) 
-  where alter :: EnemyMode -> EnemyMode -> EnemyMode
-        alter _ to = to
+changeModes mo = updateEnemies (Map.map (\en -> alter (mode en) mo en)) 
+  where alter :: EnemyMode -> EnemyMode -> Enemy -> Enemy
+        alter RETURN _  = setMode RETURN
+        alter CHASE  to = setMode to . setPendingReverse True
+        alter _      to = setMode to
+
+
+killPlayer :: Game -> Game
+killPlayer game = game { alive = False }
 
 
 stepPlayer :: Game -> Game
@@ -92,6 +100,27 @@ stepChomp game = case chomped of
         chomped = Map.lookup p (pills game)
         alterGame DOT = id
         alterGame ENERGIZER = frighten 
+
+
+stepEnter enType t = do
+  ens <- gets enemies
+  let mustReverse = pendingReverse $ ens Map.! enType
+  void . when mustReverse $
+    modify $ updateEnemies (Map.adjust (setPendingReverse False . updateActor reverseDirection) enType)
+  return ()
+
+
+stepCollisions = do
+  ens <- gets enemies
+  plr <- gets player
+  let tilePos = toTile . pos
+  let plrTile = tilePos plr
+  let colliding = Map.filter ((plrTile ==) . tilePos . actor) ens
+  let (harmful, harmless) = Map.partition (harmsPlayer . mode) colliding
+  unless (Map.null harmful) $
+    modify killPlayer
+  Data.Foldable.sequence_ $ Map.mapWithKey (\k _ -> modify $ updateEnemies (Map.adjust (setMode RETURN) k)) harmless
+  return ()
 
 
 step :: State Game Output
@@ -130,18 +159,29 @@ step = do
   ens <- gets enemies 
   let targets = findTargets plr ens
 
+  let tilePos = toTile . pos . actor
+  let oldTiles = Map.map tilePos ens
+
   t <- gets ticks
   lev <- gets level
   when (even t) $
     modify $ updateEnemies $ refreshEnemies lev targets
-  
+
+  ens <- gets enemies
+  let tileChangers = Map.differenceWith (\a b -> if a == b then Nothing else Just b) oldTiles (Map.map tilePos ens)
+
+  Data.Foldable.sequence_ . Map.mapWithKey stepEnter $ tileChangers
+
+  stepCollisions
+
   game <- get
   put $ game { ticks = ticks game + 1
              }
 
   order <- gets modeOrder
   return Output { enemyTargets = targets
-                , messages = (if isJust order then [show $ fromJust order] else []) 
+                , messages = (if isJust order then [show $ fromJust order] else []) ++
+                             (if Map.null tileChangers then [] else  [show tileChangers])
                 }
 
 
@@ -161,6 +201,7 @@ findTargets :: Actor -> Enemies -> Map.Map EnemyType Point
 findTargets plr ens = Map.mapWithKey findTarget . Map.map mode $ ens 
   where findTarget enType SCATTER = scatterTarget enType
         findTarget enType CHASE = chaseTarget enType 
+        findTarget _      RETURN = houseEntrance
         findTarget _ _ = (0, 0)
         pTile = toTile $ pos plr
         pDir = dir plr
@@ -189,9 +230,11 @@ refreshEnemies lev targets ens = movedEnemies
         turnedEnemies = Map.mapWithKey turnEnemy ens 
         movedEnemies = Map.map (updateActor $ moveActor lev) turnedEnemies
         applyAI eType en = turn (decideTurn lev (targets Map.! eType) en) en 
-        turnEnemy eType en@(mo, ac) = if atJunction ac
-                         then (mo, applyAI eType ac)
-                         else en
+        turnEnemy eType en = if atJunction ac
+                               then updateActor (applyAI eType) en
+                               else en
+                             where ac = actor en
+                                   mo = mode en
 
 
 decideTurn :: Level -> Point -> Actor -> Direction

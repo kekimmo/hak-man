@@ -19,6 +19,10 @@ turn :: Direction -> Actor -> Actor
 turn d ac = ac { dir = d }
 
 
+reverseDirection :: Actor -> Actor
+reverseDirection ac = turn (opposite $ dir ac) ac
+
+
 corner :: Actor -> Point
 corner ac = (x - actorSize `div` 2, y - actorSize `div` 2)
   where (x, y) = pos ac
