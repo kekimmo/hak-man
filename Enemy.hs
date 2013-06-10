@@ -4,6 +4,11 @@ module Enemy where
 import Actor
 
 
+data EnemyType = BLINKY | PINKY | INKY | CLYDE deriving (Eq, Ord, Show)
+
+enemyTypes :: [EnemyType]
+enemyTypes = [BLINKY, PINKY, INKY, CLYDE]
+
 data EnemyMode = SCATTER | CHASE | FRIGHTENED | RETURN deriving (Show, Eq)
 data Enemy = Enemy { mode :: EnemyMode
                    , actor :: Actor

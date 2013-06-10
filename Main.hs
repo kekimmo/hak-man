@@ -18,6 +18,7 @@ import Actor
 import Game
 import Base
 import Enemy
+import Event
 
 
 main :: IO ()
@@ -64,8 +65,11 @@ main = withInit [InitEverything] $ do
                                                        }) typeSet
                   , phase = 0
                   , timeInPhase = 0
-                  , frightenedTimeLeft = 0
+                  , frState = FrightenedState { timeLeft = 0
+                                              , enemiesEaten = 0
+                                              }
                   , modeOrder = Nothing
+                  , pendingEvents = []
                   }
 
   play defs game
@@ -82,8 +86,8 @@ createEnemy CLYDE = Actor (16 * tileSize, 13 * tileSize + 8) Dir.LEFT
 play :: Draw.Defs -> Game -> IO ()
 play defs = eventLoop 
   where eventLoop game = do
-          event <- pollEvent
-          checkEvent event
+          ev <- pollEvent
+          checkEvent ev
           where 
             checkEvent (NoEvent) = do
               let (output, newGame) = runState step game 
@@ -95,7 +99,7 @@ play defs = eventLoop
               mapM_ drawEnemy $ Map.assocs $ enemies newGame
               Draw.player defs (player newGame) (level newGame)
               mapM_ drawTarget $ Map.assocs $ enemyTargets output
-              mapM_ putStrLn $ messages output
+              mapM_ print . filter (/= AtePill DOT) $ events output
               -- print $ enemyTargets output Map.! INKY
               SDL.flip (Draw.surface defs)
               eventLoop newGame

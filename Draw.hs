@@ -21,9 +21,9 @@ data Defs = Defs { surface :: Surface
                  , spriteWall :: Surface
                  , spriteFloor :: Surface
                  , spritesPlayer :: Map.Map Direction Surface
-                 , spritesEnemy :: Map.Map EnemyType Surface
+                 , spritesEnemy :: Map.Map Enemy.EnemyType Surface
                  , spriteFrightened :: Surface
-                 , spritesTarget :: Map.Map EnemyType Surface
+                 , spritesTarget :: Map.Map Enemy.EnemyType Surface
                  , spritesEnemyDir :: Map.Map Direction Surface
                  , spritesPill :: Map.Map Pill Surface
                  } deriving (Show)
@@ -38,7 +38,7 @@ player defs ac = actor defs ac sprite
   where sprite = spritesPlayer defs Map.! Actor.dir ac
 
 
-enemy :: Defs -> EnemyType -> Enemy.Enemy -> Level -> IO Bool
+enemy :: Defs -> Enemy.EnemyType -> Enemy.Enemy -> Level -> IO Bool
 enemy defs eType en lev = do when (isJust baseSprite) $
                                void $ actor defs ac (fromJust baseSprite) lev
                              actor defs ac directionSprite lev
@@ -80,7 +80,7 @@ actor defs ac sprite lev = do
         --t = (x `div` tileSize, y `div` tileSize)
 
 
-target :: Defs -> EnemyType -> Point -> Level -> IO Bool
+target :: Defs -> Enemy.EnemyType -> Point -> Level -> IO Bool
 target defs eType p lev = if within lev p then yes else no
   where sprite = spritesTarget defs Map.! eType
         yes = blitSurface sprite Nothing (surface defs) (tileRect p)

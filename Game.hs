@@ -13,10 +13,21 @@ import Actor
 import Direction as Dir
 import Point
 import Enemy
+import Event
 
 
 type Enemies = Map.Map EnemyType Enemy
 type EnemyModes = Map.Map EnemyType EnemyMode
+
+
+data FrightenedState = FrightenedState { timeLeft :: Int
+                                       , enemiesEaten :: Int
+                                       } deriving (Show)
+
+
+updateEnemiesEaten :: (Int -> Int) -> FrightenedState -> FrightenedState
+updateEnemiesEaten f s = s { enemiesEaten = f $ enemiesEaten s }
+
 
 data Game = Game { ticks :: Integer
                  , player :: Actor
@@ -26,9 +37,10 @@ data Game = Game { ticks :: Integer
                  , nextTurn :: Direction
                  , enemies :: Enemies
                  , phase :: Int
-                 , frightenedTimeLeft :: Int
+                 , frState :: FrightenedState
                  , modeOrder :: Maybe EnemyMode
                  , timeInPhase :: Integer
+                 , pendingEvents :: [Event]
                  } deriving (Show)
 
 
@@ -40,7 +52,7 @@ phases = [(SCATTER, 7 * 60)
          ]
 
 data Output = Output { enemyTargets :: Map.Map EnemyType Point
-                     , messages :: [String]
+                     , events :: [Event]
                      }
 
 setNextTurn :: Direction -> Game -> Game 
@@ -59,8 +71,16 @@ updateEnemies :: (Enemies -> Enemies) -> Game -> Game
 updateEnemies f game = game { enemies = f $ enemies game }
 
 
+updateEnemy :: (Enemy -> Enemy) -> EnemyType -> Game -> Game
+updateEnemy f eType = updateEnemies (Map.adjust f eType)
+
+
 updatePills :: (Pills -> Pills) -> Game -> Game
 updatePills f game = game { pills = f $ pills game }
+
+
+updateFrState :: (FrightenedState -> FrightenedState) -> Game -> Game
+updateFrState f game = game { frState = f $ frState game }
 
 
 removePill :: Point -> Game -> Game
@@ -68,7 +88,11 @@ removePill p = updatePills (Map.delete p)
 
 
 frighten :: Game -> Game
-frighten game = game { modeOrder = Just FRIGHTENED, frightenedTimeLeft = 7 * 60 }
+frighten game = game { modeOrder = Just FRIGHTENED
+                     , frState = FrightenedState { timeLeft = 7 * 60
+                                                 , enemiesEaten = 0
+                                                 }
+                     }
 
 
 changeModes :: EnemyMode -> Game -> Game
@@ -79,27 +103,49 @@ changeModes mo = updateEnemies (Map.map (\en -> alter (mode en) mo en))
         alter _      to = setMode to
 
 
-killPlayer :: Game -> Game
-killPlayer game = game { alive = False }
+setAlive :: Bool -> Game -> Game
+setAlive a game = game { alive = a }
 
 
-stepPlayer :: Game -> Game
-stepPlayer game = updatePlayer (pMove . pTurn) game
-  where pMove = moveActor lev
-        pTurn = if canTurn lev plr d then turn d else id
-        lev = level game
-        plr = player game
-        d = nextTurn game
+addEvent :: Event -> Game -> Game
+addEvent e game = game { pendingEvents = pendingEvents game ++ [e] }
 
 
-stepChomp :: Game -> Game
-stepChomp game = case chomped of
-    Nothing  -> game
-    (Just pl) -> removePill p . alterGame pl $ game
-  where p = toTile $ pos $ player game
-        chomped = Map.lookup p (pills game)
-        alterGame DOT = id
-        alterGame ENERGIZER = frighten 
+event :: Event -> State Game ()
+event = modify . addEvent
+
+
+dump :: State Game [Event]
+dump = state $ \game -> (pendingEvents game, game { pendingEvents = [] })
+
+
+msg :: String -> State Game ()
+msg = event . Message
+
+
+stepPlayer :: State Game ()
+stepPlayer = do
+  game <- get
+  let lev = level game
+  let plr = player game
+  let d = nextTurn game
+  when (canTurn lev plr d) $
+    modify $ updatePlayer $ turn d
+  modify $ updatePlayer $ moveActor lev
+
+
+stepChomp :: State Game ()
+stepChomp = do
+  plr <- gets player
+  pls <- gets pills
+  let p = toTile $ pos plr
+  let mChomped = Map.lookup p pls
+  when (isJust mChomped) $ do
+    let chomped = fromJust mChomped
+    modify $ removePill p
+    when (chomped == ENERGIZER) $
+      modify frighten
+    event $ AtePill chomped
 
 
 stepEnter :: EnemyType -> Point -> State Game () 
@@ -108,7 +154,6 @@ stepEnter enType _ = do
   let mustReverse = pendingReverse $ ens Map.! enType
   void . when mustReverse $
     modify $ updateEnemies (Map.adjust (setPendingReverse False . updateActor reverseDirection) enType)
-  return ()
 
 
 stepCollisions :: State Game ()
@@ -119,10 +164,18 @@ stepCollisions = do
   let plrTile = tilePos plr
   let colliding = Map.filter ((plrTile ==) . tilePos . actor) ens
   let (harmful, harmless) = Map.partition (harmsPlayer . mode) colliding
-  unless (Map.null harmful) $
-    modify killPlayer
-  Data.Foldable.sequence_ $ Map.mapWithKey (\k _ -> modify $ updateEnemies (Map.adjust (setMode RETURN) k)) harmless
+  let frightened = Map.filter ((FRIGHTENED == ) . mode) harmless
+  unless (Map.null harmful) $ do
+    modify $ setAlive False 
+    event Eaten
+  Data.Foldable.sequence_ . Map.mapWithKey hitFrightened $ frightened
   return ()
+  where hitFrightened eType _ = do
+                  modify $ updateEnemy (setMode RETURN) eType
+                  modify $ updateFrState (updateEnemiesEaten (+1))
+                  event $ AteEnemy eType
+                  fr <- gets frState
+                  event . EnergizerStreak . enemiesEaten $ fr 
 
 
 step :: State Game Output
@@ -130,14 +183,15 @@ step = do
   game <- get
   put $ game { modeOrder = Nothing }
 
-  modify stepPlayer
-  modify stepChomp
+  let oldPlrTile = toTile . pos $ player game
+  stepPlayer
+  stepChomp
 
   game <- get
-  let ft = frightenedTimeLeft game
+  let ft = timeLeft . frState $ game
   let frightEnds = ft == 1
   put $ if ft > 0 then 
-    game { frightenedTimeLeft = ft - 1 }
+    game { frState = (frState game) { timeLeft = ft - 1 } }
   else
     game { timeInPhase = timeInPhase game + 1 }
 
@@ -153,9 +207,11 @@ step = do
                , modeOrder = if changedPhases then Just eMode else Nothing
                }
 
-  order <- gets modeOrder
-  when (isJust order) $
-    modify $ changeModes (fromJust order)
+  mOrder <- gets modeOrder
+  when (isJust mOrder) $ do
+    let order = fromJust mOrder 
+    modify $ changeModes order
+    event $ Order order
 
   plr <- gets player
   ens <- gets enemies 
@@ -174,16 +230,19 @@ step = do
 
   Data.Foldable.sequence_ . Map.mapWithKey stepEnter $ tileChangers
 
-  stepCollisions
+  plr <- gets player
+  let playerChangedTiles = oldPlrTile /= (toTile . pos $ plr)
+  let playerCollisionPossible = playerChangedTiles || (not . Map.null $ tileChangers)
+  when playerCollisionPossible
+    stepCollisions
 
   game <- get
   put $ game { ticks = ticks game + 1
              }
+  evs <- dump
 
-  order <- gets modeOrder
   return Output { enemyTargets = targets
-                , messages = (if isJust order then [show $ fromJust order] else []) ++
-                             (if Map.null tileChangers then [] else  [show tileChangers])
+                , events = evs
                 }
 
 
