@@ -64,9 +64,9 @@ main = withInit [InitEverything] $ do
 
 createEnemy :: EnemyType -> Actor
 createEnemy BLINKY = Actor (14 * tileSize, 13 * tileSize + 8) Dir.LEFT 
-createEnemy INKY = Actor (12 * tileSize, 16 * tileSize + 8) Dir.LEFT
-createEnemy PINKY = Actor (14 * tileSize, 16 * tileSize + 8) Dir.LEFT
-createEnemy CLYDE = Actor (16 * tileSize, 16 * tileSize + 8) Dir.LEFT
+createEnemy INKY = Actor (12 * tileSize, 13 * tileSize + 8) Dir.LEFT
+createEnemy PINKY = Actor (14 * tileSize, 13 * tileSize + 8) Dir.LEFT
+createEnemy CLYDE = Actor (16 * tileSize, 13 * tileSize + 8) Dir.LEFT
 
 
 play :: Draw.Defs -> Game -> IO ()
@@ -84,6 +84,7 @@ play defs = eventLoop
               mapM_ drawEnemy $ Map.assocs $ enemies newGame
               Draw.player defs (player newGame) (level newGame)
               mapM_ drawTarget $ Map.assocs $ enemyTargets output
+              mapM_ print $ messages output
               -- print $ enemyTargets output Map.! INKY
               
               SDL.flip (Draw.surface defs)

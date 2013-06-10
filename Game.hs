@@ -34,6 +34,7 @@ phases = [(SCATTER, 7 * 60)
          ]
 
 data Output = Output { enemyTargets :: Map.Map EnemyType Point
+                     , messages :: [String]
                      }
 
 setNextTurn :: Direction -> Game -> Game 
@@ -80,7 +81,9 @@ step = do
              , timeInPhase = if changePhases then 1 else phaseTime + 1
              }
 
-  return Output { enemyTargets = targets }
+  return Output { enemyTargets = targets
+                , messages = if changePhases then [show eMode] else []
+                }
 
 
 findTargets :: Actor -> Enemies -> Map.Map EnemyType Point
