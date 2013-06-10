@@ -48,6 +48,7 @@ main = withInit [InitEverything] $ do
   sTarget <- Data.Traversable.sequence $ Map.fromSet (sprite . ("mark-" ++) . show) typeSet
   sEnemyDir <- Data.Traversable.sequence $ Map.fromSet (dirSprite "enemy-direction") Dir.allSet
   sPill <- Data.Traversable.sequence $ Map.fromSet (sprite . ("pill-" ++) . show) pillSet
+  sNumber <- mapM (sprite . show) [0..9::Int]
 
   let (levelW, levelH) = mul tileSize $ dimensions lev
   let border = 32
@@ -55,11 +56,15 @@ main = withInit [InitEverything] $ do
   let msgBottom = screenH - border
   let msgH = 5 * border
   let msgR = Rect (levelW + border) (msgBottom - msgH) (screenW - levelW - border * 2) msgH
+  let pointsX = levelW + border
+  let pointsW = screenW - border - pointsX
+  let pointsR = Rect pointsX border pointsW numberSize 
 
   let conf = Draw.DrawConfig { Draw.surface = screen
                              , Draw.font = font
                              , Draw.levelR = levelR
                              , Draw.msgR = msgR 
+                             , Draw.pointsR = pointsR 
                              , Draw.spriteBg = sBg
                              , Draw.spriteWall = sWall
                              , Draw.spriteFloor = sFloor
@@ -69,6 +74,7 @@ main = withInit [InitEverything] $ do
                              , Draw.spritesTarget = sTarget
                              , Draw.spritesEnemyDir = sEnemyDir
                              , Draw.spritesPill = sPill
+                             , Draw.spritesNumber = sNumber
                              }
 
   let ds = Draw.DrawState { Draw.msgBuffer = [] }
@@ -77,6 +83,7 @@ main = withInit [InitEverything] $ do
                   , player = Actor (14 * 16, 25 * 16 + 8) Dir.LEFT
                   , alive = True
                   , level = lev
+                  , points = 0
                   , pills = pls
                   , nextTurn = Dir.LEFT
                   , enemies = Map.fromSet (\t -> Enemy { mode = SCATTER
@@ -144,6 +151,7 @@ drawAll game output = do
       drawEnemies = mapM_ drawEnemy $ Map.assocs ens 
       drawTarget (eType, t) = Draw.target eType t lev
       drawTargets = mapM_ drawTarget $ Map.assocs $ enemyTargets output
+      drawPoints = Draw.points $ points game 
       drawMessages = Draw.messages fmtdEvents 
 
   Draw.bg
@@ -151,6 +159,7 @@ drawAll game output = do
   drawPlayer
   drawEnemies
   drawTargets
+  drawPoints
   drawMessages
 
   conf <- ask

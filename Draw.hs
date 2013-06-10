@@ -5,6 +5,7 @@ import Control.Monad
 import Control.Monad.Reader
 import Control.Monad.State
 import Data.Maybe
+import Data.Digits
 import qualified Data.Map as Map
 
 import qualified Actor 
@@ -21,6 +22,7 @@ data DrawConfig = DrawConfig { surface :: Surface
                              , font :: TTF.Font
                              , levelR :: Rect
                              , msgR :: Rect
+                             , pointsR :: Rect
                              , spriteBg :: Surface
                              , spriteWall :: Surface
                              , spriteFloor :: Surface
@@ -30,6 +32,7 @@ data DrawConfig = DrawConfig { surface :: Surface
                              , spritesTarget :: Map.Map Enemy.EnemyType Surface
                              , spritesEnemyDir :: Map.Map Direction Surface
                              , spritesPill :: Map.Map Pill Surface
+                             , spritesNumber :: [Surface]
                              } deriving (Show)
 
 
@@ -54,6 +57,26 @@ player ac lev = do
   conf <- ask
   let sprite = spritesPlayer conf Map.! Actor.dir ac
   actor ac sprite lev
+
+
+points :: Integer -> Draw Bool
+points pts = do
+  area <- asks pointsR
+  dest <- asks surface
+  let ptsDigits = map fromIntegral $ digits 10 pts
+  let leftmost = rectX area + rectW area - length ptsDigits * numberSize
+  bgColor <- liftIO $ mapRGB (surfaceGetPixelFormat dest) 0 0 50
+  liftIO $ fillRect dest (Just area) bgColor
+  liftM and $ zipWithM (\i digit -> number (leftmost + i * numberSize, rectY area) digit) [0..] ptsDigits
+
+
+number :: Point -> Int -> Draw Bool
+number (x, y) i = do
+  when (i < 0 || i > 9) $
+    error "Number out of range"
+  dest <- asks surface
+  numbers <- asks spritesNumber
+  liftIO $ blitSurface (numbers !! i) Nothing dest (Just $ Rect x y 0 0) 
 
 
 messages :: [String] -> Draw Bool

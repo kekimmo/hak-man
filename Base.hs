@@ -16,6 +16,9 @@ tileSize = 16
 tileR :: Int
 tileR = tileSize `div` 2
 
+numberSize :: Int
+numberSize = 32
+
 
 toTile :: Point -> Point
 toTile (x, y) = (x `div` tileSize, y `div` tileSize)

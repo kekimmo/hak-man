@@ -33,6 +33,7 @@ data Game = Game { ticks :: Integer
                  , player :: Actor
                  , alive :: Bool
                  , level :: Level
+                 , points :: Integer
                  , pills :: Pills
                  , nextTurn :: Direction
                  , enemies :: Enemies
@@ -73,6 +74,10 @@ updateEnemies f game = game { enemies = f $ enemies game }
 
 updateEnemy :: (Enemy -> Enemy) -> EnemyType -> Game -> Game
 updateEnemy f eType = updateEnemies (Map.adjust f eType)
+
+
+updatePoints :: (Integer -> Integer) -> Game -> Game
+updatePoints f game = game { points = f $ points game }
 
 
 updatePills :: (Pills -> Pills) -> Game -> Game
@@ -179,18 +184,21 @@ stepCollisions = do
 
 
 stepPoints :: [Event] -> State Game ()
-stepPoints = mapM_ event . mapMaybe process
-  where process ev = let mP = givePoints ev
-                     in case mP of
-                       (Just p) -> Just $ GotPoints ev $ fromIntegral p
-                       Nothing  -> Nothing
+stepPoints = mapM_ process 
+  where process :: Event -> State Game ()
+        process ev = do
+        let mPts = pointsFor ev
+        when (isJust mPts) $ do
+          let pts = fromJust mPts
+          modify $ updatePoints (+pts)
+          event $ GotPoints ev pts
 
 
-givePoints :: Event -> Maybe Int 
-givePoints (AtePill DOT) = Just 10
-givePoints (AtePill ENERGIZER) = Just 100
-givePoints (EnergizerStreak n) = Just $ 100 * 2^n
-givePoints _ = Nothing
+pointsFor :: Event -> Maybe Integer 
+pointsFor (AtePill DOT) = return 10
+pointsFor (AtePill ENERGIZER) = return 100
+pointsFor (EnergizerStreak n) = return $ 100 * 2^n
+pointsFor _ = mzero
 
 
 step :: State Game Output
