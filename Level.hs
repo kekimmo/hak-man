@@ -2,12 +2,15 @@
 module Level where
 
 import Data.Array.Unboxed 
+import qualified Data.Map as Map
 import Data.Tuple
 
 import Direction as Dir
 import Point
 
 
+data Pill = REGULAR | POWER deriving (Show, Eq, Ord)
+type Pills = Map.Map Point Pill
 type Tile = Bool
 type TileArray = UArray Point Tile
 data Level = Level { tiles :: TileArray }
@@ -20,15 +23,21 @@ instance Show Level where
                   mark = if tile then " " else "#"
 
 
-load :: FilePath -> IO Level
+load :: FilePath -> IO (Level, Pills)
 load file = do
   raw <- readFile file
-  let charLevel = filter (`elem` "# ") raw 
-  let tileArr = listArray ((0, 0), (35, 27)) (map charToTile charLevel)
-  return Level { tiles = tileArr }
+  let charLevel = filter (`elem` "# .O") raw 
+  let rawArr = listArray ((0, 0), (35, 27)) charLevel
+  let tileArr = amap charToTile rawArr 
+  let lev = Level { tiles = tileArr }
+  let pls = Map.mapKeys swap . Map.mapMaybe charToPill . Map.fromList . assocs $ rawArr
+  return (lev, pls)
   where
     charToTile '#' = False
-    charToTile ' ' = True
+    charToTile _ = True
+    charToPill '.' = Just REGULAR
+    charToPill 'O' = Just POWER
+    charToPill _ = Nothing
 
 
 fold :: (a -> Point -> Tile -> a) -> a -> Level -> a

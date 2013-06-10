@@ -2,6 +2,7 @@
 module Game where
 
 import Control.Monad.State
+import Data.Maybe
 
 import qualified Data.Map as Map
 
@@ -15,10 +16,10 @@ import Point
 type Enemies = Map.Map EnemyType Actor
 data EnemyMode = SCATTER | CHASE | FRIGHTENED deriving (Show, Eq)
 
-
 data Game = Game { ticks :: Integer
                  , player :: Actor
                  , level :: Level
+                 , pills :: Map.Map Point Pill
                  , nextTurn :: Direction
                  , enemies :: Enemies
                  , phase :: Int
@@ -51,6 +52,9 @@ step = do
 
   let movedPlr = moveActor (level game) turnedPlr
 
+  let pTile = toTile $ pos movedPlr
+  let chomped = Map.lookup pTile (pills game)
+
   let phaseTime = timeInPhase game
   let phaseTimeLimit = snd $ phases !! phase game
   let changePhases = phaseTime > phaseTimeLimit
@@ -72,6 +76,7 @@ step = do
              , player = movedPlr
              , enemies = movedEnemies
              , phase = newPhase
+             , pills = (if isJust chomped then Map.delete pTile else id) $ pills game
              , timeInPhase = if changePhases then 1 else phaseTime + 1
              }
 

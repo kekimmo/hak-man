@@ -1,5 +1,5 @@
 
-module Draw (Defs(..), level, player, enemy, mark) where
+module Draw (Defs(..), level, player, enemy, target, pill) where
 
 import qualified Data.Map as Map
 
@@ -17,9 +17,10 @@ data Defs = Defs { surface :: Surface
                  , spriteWall :: Surface
                  , spriteFloor :: Surface
                  , spritesPlayer :: Map.Map Direction Surface
-                 , spriteEnemies :: Map.Map EnemyType Surface
-                 , spriteTargets :: Map.Map EnemyType Surface
-                 , spriteEnemyDirs :: Map.Map Direction Surface
+                 , spritesEnemy :: Map.Map EnemyType Surface
+                 , spritesTarget :: Map.Map EnemyType Surface
+                 , spritesEnemyDir :: Map.Map Direction Surface
+                 , spritesPill :: Map.Map Pill Surface
                  } deriving (Show)
 
 
@@ -31,8 +32,13 @@ player defs ac = actor defs ac sprite
 enemy :: Defs -> EnemyType -> Actor.Actor -> Level -> IO Bool
 enemy defs eType ac lev = do actor defs ac baseSprite lev
                              actor defs ac directionSprite lev
-  where baseSprite = spriteEnemies defs Map.! eType
-        directionSprite = spriteEnemyDirs defs Map.! Actor.dir ac
+  where baseSprite = spritesEnemy defs Map.! eType
+        directionSprite = spritesEnemyDir defs Map.! Actor.dir ac
+
+
+pill :: Defs -> Pill -> Point -> IO Bool
+pill defs pl p = blitSurface sprite Nothing (surface defs) (tileRect p)  
+  where sprite = spritesPill defs Map.! pl
  
 
 actor :: Defs -> Actor.Actor -> Surface -> Level -> IO Bool
@@ -59,9 +65,9 @@ actor defs ac sprite lev = do
         --t = (x `div` tileSize, y `div` tileSize)
 
 
-mark :: Defs -> EnemyType -> Point -> Level -> IO Bool
-mark defs eType p lev = if within lev p then yes else no
-  where sprite = spriteTargets defs Map.! eType
+target :: Defs -> EnemyType -> Point -> Level -> IO Bool
+target defs eType p lev = if within lev p then yes else no
+  where sprite = spritesTarget defs Map.! eType
         yes = blitSurface sprite Nothing (surface defs) (tileRect p)
         no = return True
 
