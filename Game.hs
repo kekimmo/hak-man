@@ -53,8 +53,6 @@ phases = [(SCATTER, 7 * 60)
          ,(CHASE, 10 * 20 * 60)
          ]
 
-data Output = Output { events :: [(Integer, Event)]
-                     }
 
 setNextTurn :: Direction -> Game -> Game 
 setNextTurn d game = game { Game.nextTurn = d }
@@ -120,8 +118,12 @@ event :: Event -> State Game ()
 event = modify . addEvent
 
 
-dump :: State Game [(Integer, Event)]
-dump = state $ \game -> (pendingEvents game, game { pendingEvents = [] })
+getEvents :: State Game [(Integer, Event)]
+getEvents = do
+  game <- get
+  let evs = pendingEvents game
+  put $ game { pendingEvents = [] }
+  return evs
 
 
 msg :: String -> State Game ()
@@ -263,7 +265,7 @@ pointsFor (EnergizerStreak n) = return $ 100 * 2^n
 pointsFor _ = mzero
 
 
-step :: State Game Output
+step :: State Game ()
 step = do
   game <- get
   put $ game { modeOrder = Nothing }
@@ -322,20 +324,19 @@ step = do
   when playerCollisionPossible
     stepCollisions
 
-  game <- get
-  put $ game { ticks = ticks game + 1
-             }
+  evs <- gets pendingEvents
+  tick <- gets ticks
+  stepPoints . map snd . filter ((== tick) . fst) $ evs
 
-  evs <- dump
-  stepPoints . map snd $ evs
+  game <- get
+  put $ game { ticks = tick + 1
+             }
 
   let getTargetings (Targeted enType tile) = Just (enType, tile)
       getTargetings _ = Nothing
   game <- get
   put $ game { lastTargets = (Map.fromList . mapMaybe (getTargetings . snd) $ evs) `Map.union` lastTargets game }
   
-  return Output { events = evs }
-
 
 changedPhase :: Int -> Integer -> Maybe Int
 changedPhase oldPhase phaseTime = if phaseTime > phaseTimeLimit
@@ -393,7 +394,7 @@ moveActor lev ac = if moveOk then move (wrapActor dims newPos) ac else ac
 
 allowedTurns :: Level -> Point -> Direction -> [Direction]
 allowedTurns lev p d = noReversing . possibleTurns lev $ p 
-  where noReversing = filter (/= (opposite d)) 
+  where noReversing = filter (/= opposite d) 
 
 
 possibleTurns :: Level -> Point -> [Direction]

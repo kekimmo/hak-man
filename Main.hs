@@ -117,20 +117,23 @@ createEnemy CLYDE = Actor (16 * tileSize, 13 * tileSize + 8) Dir.LEFT Dir.LEFT
 play :: Draw.DrawConfig -> Draw.DrawState -> Game -> IO ()
 play conf origDs origGame = do
   startTime <- getCurrentTime
-  eventLoop startTime origDs origGame
-  where eventLoop :: UTCTime -> Draw.DrawState -> Game -> IO ()
-        eventLoop noBefore ds game = do
+  eventLoop startTime startTime origDs origGame
+  where eventLoop :: UTCTime -> UTCTime -> Draw.DrawState -> Game -> IO ()
+        eventLoop nextStep nextDraw ds game = do
           ev <- pollEvent
           checkEvent ev
           where 
             checkEvent (NoEvent) = do
               now <- getCurrentTime
-              if now < noBefore then 
-                eventLoop noBefore ds game
-              else do
-                let (output, newGame) = runState step game
-                (_, newDs) <- Draw.run (drawAll newGame output) conf ds
-                eventLoop (addUTCTime (1/60) noBefore) newDs newGame
+              if now >= nextDraw then do
+                let (events, newGame) = runState getEvents game
+                (_, newDs) <- Draw.run (drawAll game events) conf ds
+                eventLoop nextStep (addUTCTime (1/60) nextDraw) newDs newGame
+              else if now >= nextStep then do
+                let newGame = execState step game
+                eventLoop (addUTCTime (1/60/4) nextStep) nextDraw ds newGame
+              else
+                eventLoop nextStep nextDraw ds game
 
             checkEvent (KeyDown (Keysym key _ _)) = case key of
               SDLK_ESCAPE -> pushEvent Quit 
@@ -138,16 +141,16 @@ play conf origDs origGame = do
               SDLK_RIGHT -> trn Dir.RIGHT
               SDLK_UP -> trn Dir.UP
               SDLK_DOWN -> trn Dir.DOWN
-              _ -> eventLoop noBefore ds game
-              where trn d = eventLoop noBefore ds $ Game.setNextTurn d game
+              _ -> eventLoop nextStep nextDraw ds game
+              where trn d = eventLoop nextStep nextDraw ds $ Game.setNextTurn d game
 
             checkEvent (Quit) = return ()
 
-            checkEvent _ = eventLoop noBefore ds game
+            checkEvent _ = eventLoop nextStep nextDraw ds game
 
 
-drawAll :: Game -> Output -> Draw.Draw () 
-drawAll game output = do
+drawAll :: Game -> [(Integer, Event.Event)] -> Draw.Draw () 
+drawAll game events = do
   let lev = level game
       ens = enemies game
       formatEvent (t, ev) = "[" ++ show t ++ "] " ++ show ev
@@ -155,9 +158,9 @@ drawAll game output = do
       display (GotPoints (AtePill DOT) _) = False
       display (Targeted _ _) = False
       display _ = True
-      filteredEvents = filter (display . snd) $ events output
+      filteredEvents = filter (display . snd) $ events
       fmtdEvents = map formatEvent filteredEvents
-      pureEvents = map snd $ events output
+      pureEvents = map snd $ events
       drawPills = mapM_ (uncurry Draw.pill . swap) . Map.assocs . pills $ game
       drawPlayer = Draw.player (player game) lev
       drawEnemy (eType, en) = Draw.enemy eType en lev
