@@ -106,13 +106,12 @@ messages = do
   area <- asks msgR
   fn <- asks font
   dest <- asks surface
-  ds <- get
   lineH <- liftIO $ TTF.fontLineSkip fn
   color <- liftIO $ mapRGB (surfaceGetPixelFormat dest) 0 0 50
   buffer <- gets msgBuffer 
 
   -- Assume monospace
-  (letterW, letterH) <- liftIO $ TTF.utf8Size fn "a"
+  (letterW, _) <- liftIO $ TTF.utf8Size fn "a"
 
   let maxW = rectW area `div` letterW
 

@@ -246,7 +246,7 @@ stepEnemies :: State Game ()
 stepEnemies = do
   t <- gets ticks 
   lev <- gets level
-  modify $ updateEnemies (Map.mapWithKey (\eType en -> stepEnemy lev (mode en) t en))
+  modify $ updateEnemies (Map.map (\en -> stepEnemy lev (mode en) t en))
 
 
 stepEnemy :: Level -> EnemyMode -> Integer -> Enemy -> Enemy
@@ -301,17 +301,10 @@ step = do
     modify $ changeModes order
     event $ Order order
 
-  plr <- gets player
   ens <- gets enemies 
-  -- let targets = findTargets plr ens
-
   let tilePos = toTile . pos . actor
   let oldTiles = Map.map tilePos ens
 
-  -- t <- gets ticks
-  -- lev <- gets level
-  -- when (even t) $
-  --   modify $ updateEnemies $ refreshEnemies lev targets
   stepEnemies
 
   ens <- gets enemies
