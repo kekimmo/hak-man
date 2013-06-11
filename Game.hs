@@ -42,6 +42,7 @@ data Game = Game { ticks :: Integer
                  , modeOrder :: Maybe EnemyMode
                  , timeInPhase :: Integer
                  , pendingEvents :: [(Integer, Event)]
+                 , lastTargets :: Map.Map EnemyType Point
                  } deriving (Show)
 
 
@@ -49,15 +50,14 @@ type Phase = (EnemyMode, Integer)
 --phases :: Map.Map EnemyMode Integer
 phases :: [Phase]
 phases = [(SCATTER, 7 * 60)
-         ,(CHASE, 20 * 60)
+         ,(CHASE, 10 * 20 * 60)
          ]
 
-data Output = Output { enemyTargets :: Map.Map EnemyType Point
-                     , events :: [(Integer, Event)]
+data Output = Output { events :: [(Integer, Event)]
                      }
 
 setNextTurn :: Direction -> Game -> Game 
-setNextTurn d game = game { nextTurn = d }
+setNextTurn d game = game { Game.nextTurn = d }
 
 
 setPlayer :: Actor -> Game -> Game
@@ -133,8 +133,8 @@ stepPlayer = do
   game <- get
   let lev = level game
   let plr = player game
-  let d = nextTurn game
-  when (canTurn lev plr d) $
+  let d = Game.nextTurn game 
+  when (atJunction plr && canTurn lev (toTile . pos $ plr) d) $
     modify $ updatePlayer $ turn d
   modify $ updatePlayer $ moveActor lev
 
@@ -153,12 +153,58 @@ stepChomp = do
     event $ AtePill chomped
 
 
-stepEnter :: EnemyType -> Point -> State Game () 
-stepEnter enType _ = do
+stepEnter :: EnemyType -> Enemy -> Point -> State Game () 
+stepEnter enType en tile = do
+  let mustReverse = pendingReverse en
+
+  -- event $ EnemyEntered enType tile  
+
+  when mustReverse $
+    modify $ updateEnemy (setPendingReverse False . updateActor (reverseDirection . Actor.setNextTurn (opposite $ dir $ actor en))) enType
+
   ens <- gets enemies
-  let mustReverse = pendingReverse $ ens Map.! enType
-  void . when mustReverse $
-    modify $ updateEnemies (Map.adjust (setPendingReverse False . updateActor reverseDirection) enType)
+  lev <- gets level
+  plr <- gets player
+  let ac = actor $ ens Map.! enType
+  let nextTile = add tile (delta 1 (Actor.nextTurn ac)) 
+  let targetTile = findTarget ens plr enType (mode en) 
+  event $ Targeted enType targetTile
+
+  let d = decideTurn lev nextTile targetTile ac
+  modify $ updateEnemy (updateActor (Actor.setNextTurn d)) enType
+
+  return ()
+
+
+-- refreshEnemies :: Level -> Map.Map EnemyType Point -> Enemies -> Enemies
+-- refreshEnemies lev targets ens = movedEnemies
+--   where 
+--         turnedEnemies = Map.mapWithKey turnEnemy ens 
+--         movedEnemies = Map.map (updateActor $ moveActor lev) turnedEnemies
+--         applyAI eType en = turn (decideTurn lev (targets Map.! eType) en) en 
+--         turnEnemy eType en = if atJunction (actor en)
+--                                then updateActor (applyAI eType) en
+--                                else en
+
+
+decideTurn :: Level -> Point -> Point -> Actor -> Direction
+decideTurn lev junction target ac = snd . minimum $ scoredTurns
+  where
+    scoredTurns = map score turns
+    turns = allowedTurns lev junction (Actor.nextTurn ac)
+    score d = (sqDistance (neighbor lev junction d) target, d)
+
+
+tileDistance :: Point -> Point -> Int
+tileDistance a b = round doubleSqrt 
+  where doubleSqrt = sqrt $ fromIntegral $ sqDistance a b :: Double
+
+
+sqDistance :: Point -> Point -> Int
+sqDistance (a, b) (x, y) = square 
+  where dx = a - x :: Int
+        dy = b - y :: Int
+        square = dx*dx + dy*dy
 
 
 stepCollisions :: State Game ()
@@ -192,6 +238,22 @@ stepPoints = mapM_ process
           let pts = fromJust mPts
           modify $ updatePoints (+pts)
           event $ GotPoints ev pts
+
+
+stepEnemies :: State Game ()
+stepEnemies = do
+  t <- gets ticks 
+  lev <- gets level
+  modify $ updateEnemies (Map.mapWithKey (\eType en -> stepEnemy lev (mode en) t en))
+
+
+stepEnemy :: Level -> EnemyMode -> Integer -> Enemy -> Enemy
+stepEnemy lev mo tick en = if shouldAct mo then act en else en
+  where shouldAct FRIGHTENED = tick `rem` 4 == 0
+        shouldAct _          = even tick 
+        act = updateActor (tryMoving . tryTurning)
+        tryTurning ac = if atJunction ac && (Actor.nextTurn ac `elem` allowedTurns lev (toTile . pos $ ac) (dir ac)) then applyNextTurn ac else ac
+        tryMoving = moveActor lev
 
 
 pointsFor :: Event -> Maybe Integer 
@@ -238,20 +300,21 @@ step = do
 
   plr <- gets player
   ens <- gets enemies 
-  let targets = findTargets plr ens
+  -- let targets = findTargets plr ens
 
   let tilePos = toTile . pos . actor
   let oldTiles = Map.map tilePos ens
 
-  t <- gets ticks
-  lev <- gets level
-  when (even t) $
-    modify $ updateEnemies $ refreshEnemies lev targets
+  -- t <- gets ticks
+  -- lev <- gets level
+  -- when (even t) $
+  --   modify $ updateEnemies $ refreshEnemies lev targets
+  stepEnemies
 
   ens <- gets enemies
   let tileChangers = Map.differenceWith (\a b -> if a == b then Nothing else Just b) oldTiles (Map.map tilePos ens)
 
-  Data.Foldable.sequence_ . Map.mapWithKey stepEnter $ tileChangers
+  Data.Foldable.sequence_ . Map.mapWithKey (\enType tile -> stepEnter enType (ens Map.! enType) tile) $ tileChangers
 
   plr <- gets player
   let playerChangedTiles = oldPlrTile /= (toTile . pos $ plr)
@@ -265,10 +328,13 @@ step = do
 
   evs <- dump
   stepPoints . map snd $ evs
+
+  let getTargetings (Targeted enType tile) = Just (enType, tile)
+      getTargetings _ = Nothing
+  game <- get
+  put $ game { lastTargets = (Map.fromList . mapMaybe (getTargetings . snd) $ evs) `Map.union` lastTargets game }
   
-  return Output { enemyTargets = targets
-                , events = evs
-                }
+  return Output { events = evs }
 
 
 changedPhase :: Int -> Integer -> Maybe Int
@@ -283,24 +349,25 @@ changedMode :: EnemyMode -> EnemyMode -> EnemyMode
 changedMode newMode oldMode = if oldMode == FRIGHTENED then oldMode else newMode
 
 
-findTargets :: Actor -> Enemies -> Map.Map EnemyType Point
-findTargets plr ens = Map.mapWithKey findTarget . Map.map mode $ ens 
-  where findTarget enType SCATTER = scatterTarget enType
-        findTarget enType CHASE = chaseTarget enType 
-        findTarget _      RETURN = houseEntrance
-        findTarget _ _ = (0, 0)
-        pTile = toTile $ pos plr
-        pDir = dir plr
-        errVec n = add pTile $ case pDir of
-          UP -> add (-n, 0) $ delta n UP
-          _ -> delta n pDir 
-        chaseTarget BLINKY = pTile
-        chaseTarget PINKY = errVec 4
-        chaseTarget INKY = add pTile . mul 2 $ vector blinkyTile (errVec 2)
-          where blinkyTile = toTile . pos $ actor $ ens Map.! BLINKY
-        chaseTarget CLYDE = if dist > 8 then pTile else scatterTarget CLYDE 
-          where dist = tileDistance (toTile $ pos $ actor clyde) pTile 
-                clyde = ens Map.! CLYDE
+findTarget :: Enemies -> Actor -> EnemyType -> EnemyMode -> Point
+findTarget ens plr = target
+  where 
+    target enType SCATTER = scatterTarget enType
+    target enType CHASE = chaseTarget enType 
+    target _      RETURN = houseEntrance
+    target _ _ = (0, 0)
+    pTile = toTile $ pos plr
+    pDir = dir plr
+    errVec n = add pTile $ case pDir of
+      UP -> add (-n, 0) $ delta n UP
+      _ -> delta n pDir 
+    chaseTarget BLINKY = pTile
+    chaseTarget PINKY = errVec 4
+    chaseTarget INKY = add pTile . mul 2 $ vector blinkyTile (errVec 2)
+      where blinkyTile = toTile . pos $ actor $ ens Map.! BLINKY
+    chaseTarget CLYDE = if dist > 8 then pTile else scatterTarget CLYDE 
+      where dist = tileDistance (toTile $ pos $ actor clyde) pTile 
+            clyde = ens Map.! CLYDE
 
 
 scatterTarget :: EnemyType -> Point
@@ -308,39 +375,6 @@ scatterTarget BLINKY = (25, 0)
 scatterTarget PINKY = (2, 0)
 scatterTarget INKY = (27, 33)
 scatterTarget CLYDE = (0, 33) 
-
-
-refreshEnemies :: Level -> Map.Map EnemyType Point -> Enemies -> Enemies
-refreshEnemies lev targets ens = movedEnemies
-  where 
-        turnedEnemies = Map.mapWithKey turnEnemy ens 
-        movedEnemies = Map.map (updateActor $ moveActor lev) turnedEnemies
-        applyAI eType en = turn (decideTurn lev (targets Map.! eType) en) en 
-        turnEnemy eType en = if atJunction (actor en)
-                               then updateActor (applyAI eType) en
-                               else en
-
-
-decideTurn :: Level -> Point -> Actor -> Direction
-decideTurn lev target ac = snd . minimum $ scoredTurns
-  where
-    scoredTurns = map score turns
-    turns = allowedTurns lev ac
-    junction = toTile (pos ac) 
-    score d = (sqDistance (neighbor lev junction d) target, d)
-
-
-tileDistance :: Point -> Point -> Int
-tileDistance a b = round doubleSqrt 
-  where doubleSqrt = sqrt $ fromIntegral $ sqDistance a b :: Double
-
-
-sqDistance :: Point -> Point -> Int
-sqDistance (a, b) (x, y) = square 
-  where dx = a - x :: Int
-        dy = b - y :: Int
-        square = dx*dx + dy*dy
-
 
 
 moveActor :: Level -> Actor -> Actor
@@ -357,25 +391,22 @@ moveActor lev ac = if moveOk then move (wrapActor dims newPos) ac else ac
   ok s t = walkable lev (wrap lev (s, t))
 
 
-allowedTurns :: Level -> Actor -> [Direction]
-allowedTurns lev ac = noReversing . possibleTurns lev $ ac
-  where noReversing = filter (/= (opposite $ dir ac)) 
+allowedTurns :: Level -> Point -> Direction -> [Direction]
+allowedTurns lev p d = noReversing . possibleTurns lev $ p 
+  where noReversing = filter (/= (opposite d)) 
 
 
-possibleTurns :: Level -> Actor -> [Direction]
-possibleTurns lev ac = if atJunction ac
-                         then filter (canTurn lev ac) Dir.all
-                         else []
+possibleTurns :: Level -> Point -> [Direction]
+possibleTurns lev p = filter (canTurn lev p) Dir.all
 
 
-canTurn :: Level -> Actor -> Direction -> Bool
-canTurn lev ac d = (reversing || atJunction ac) && walkable lev targetTile
-  where reversing = d == opposite (dir ac)
-        targetTile = wrap lev . add (toTile . pos $ ac) . delta 1 $ d
+canTurn :: Level -> Point -> Direction -> Bool
+canTurn lev p d = walkable lev targetTile
+  where targetTile = wrap lev . add p . delta 1 $ d
 
 
 atJunction :: Actor -> Bool
 atJunction ac = centered x && centered y 
-  where (x, y) = pos ac
-        centered u = (u - tileR) `mod` tileSize == 0
+  where centered u = (u - tileR) `mod` tileSize == 0
+        (x, y) = pos ac
 

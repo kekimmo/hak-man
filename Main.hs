@@ -80,12 +80,12 @@ main = withInit [InitEverything] $ do
   let ds = Draw.DrawState { Draw.msgBuffer = [] }
 
   let game = Game { ticks = 0
-                  , player = Actor (14 * 16, 25 * 16 + 8) Dir.LEFT
+                  , player = Actor (14 * 16, 25 * 16 + 8) Dir.LEFT Dir.LEFT
                   , alive = True
                   , level = lev
                   , points = 0
                   , pills = pls
-                  , nextTurn = Dir.LEFT
+                  , Game.nextTurn = Dir.LEFT
                   , enemies = Map.fromSet (\t -> Enemy { mode = SCATTER
                                                        , actor = createEnemy t
                                                        , pendingReverse = False
@@ -97,6 +97,7 @@ main = withInit [InitEverything] $ do
                                               }
                   , modeOrder = Nothing
                   , pendingEvents = []
+                  , lastTargets = Map.empty
                   }
 
   play conf ds game 
@@ -104,10 +105,10 @@ main = withInit [InitEverything] $ do
 
 
 createEnemy :: EnemyType -> Actor
-createEnemy BLINKY = Actor (14 * tileSize, 13 * tileSize + 8) Dir.LEFT 
-createEnemy INKY = Actor (12 * tileSize, 13 * tileSize + 8) Dir.LEFT
-createEnemy PINKY = Actor (14 * tileSize, 13 * tileSize + 8) Dir.LEFT
-createEnemy CLYDE = Actor (16 * tileSize, 13 * tileSize + 8) Dir.LEFT
+createEnemy BLINKY = Actor (14 * tileSize, 13 * tileSize + 8) Dir.LEFT Dir.LEFT
+createEnemy INKY = Actor (12 * tileSize, 13 * tileSize + 8) Dir.LEFT Dir.LEFT
+createEnemy PINKY = Actor (14 * tileSize, 13 * tileSize + 8) Dir.LEFT Dir.LEFT
+createEnemy CLYDE = Actor (16 * tileSize, 13 * tileSize + 8) Dir.LEFT Dir.LEFT
 
 
 play :: Draw.DrawConfig -> Draw.DrawState -> Game -> IO ()
@@ -128,7 +129,7 @@ play conf = eventLoop
               SDLK_UP -> trn Dir.UP
               SDLK_DOWN -> trn Dir.DOWN
               _ -> eventLoop ds game
-              where trn d = eventLoop ds $ setNextTurn d game
+              where trn d = eventLoop ds $ Game.setNextTurn d game
 
             checkEvent (Quit) = return ()
 
@@ -142,15 +143,17 @@ drawAll game output = do
       formatEvent (t, ev) = "[" ++ show t ++ "] " ++ show ev
       display (AtePill DOT) = False
       display (GotPoints (AtePill DOT) _) = False
+      display (Targeted _ _) = False
       display _ = True
       filteredEvents = filter (display . snd) $ events output
       fmtdEvents = map formatEvent filteredEvents
+      pureEvents = map snd $ events output
       drawPills = mapM_ (uncurry Draw.pill . swap) . Map.assocs . pills $ game
       drawPlayer = Draw.player (player game) lev
       drawEnemy (eType, en) = Draw.enemy eType en lev
       drawEnemies = mapM_ drawEnemy $ Map.assocs ens 
-      drawTarget (eType, t) = Draw.target eType t lev
-      drawTargets = mapM_ drawTarget $ Map.assocs $ enemyTargets output
+      drawTarget (enType, t) = Draw.target enType t lev
+      drawTargets = mapM_ drawTarget $ Map.assocs $ lastTargets game 
       drawPoints = Draw.points $ points game 
       drawMessages = Draw.messages fmtdEvents 
 

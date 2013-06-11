@@ -8,6 +8,7 @@ import Base
 
 data Actor = Actor { pos :: Point
                    , dir ::  Direction
+                   , nextTurn :: Direction
                    } deriving (Show)
 
 
@@ -17,6 +18,14 @@ move p ac = ac { pos = p }
 
 turn :: Direction -> Actor -> Actor
 turn d ac = ac { dir = d }
+
+
+setNextTurn :: Direction -> Actor -> Actor
+setNextTurn d ac = ac { nextTurn = d }
+
+
+applyNextTurn :: Actor -> Actor
+applyNextTurn ac = turn (nextTurn ac) ac
 
 
 reverseDirection :: Actor -> Actor

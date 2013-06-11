@@ -3,7 +3,7 @@ module Event where
 
 import Enemy 
 import Level (Pill)
-
+import Point
 
 
 data Event = Message String
@@ -13,5 +13,7 @@ data Event = Message String
            | AtePill Pill
            | EnergizerStreak Int
            | GotPoints Event Integer
+           | Targeted EnemyType Point
+           | EnemyEntered EnemyType Point
            deriving (Show, Eq)
 
