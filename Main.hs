@@ -31,7 +31,7 @@ main = withInit [InitEverything] $ do
   ttfOk <- TTF.init
   unless ttfOk $
     error "Failed to initialize fonts!"
-  font <- TTF.openFont "ttf/DejaVuSansMono.ttf" 12
+  font <- TTF.openFont "ttf/DejaVuSansMono.ttf" 10
   (lev, pls) <- L.load "lev" 
   let screenW = 800
   let screenH = 600
@@ -153,7 +153,7 @@ drawAll :: Game -> [(Integer, Event.Event)] -> Draw.Draw ()
 drawAll game events = do
   let lev = level game
       ens = enemies game
-      formatEvent (t, ev) = "[" ++ show t ++ "] " ++ show ev
+      formatEvent (t, ev) = "[" ++ show t ++ "] " ++ toString ev
       display (AtePill DOT) = False
       display (GotPoints (AtePill DOT) _) = False
       display (Targeted _ _) = False
