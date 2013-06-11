@@ -9,6 +9,7 @@ import qualified Data.Traversable
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import Data.Time
 
 import Graphics.UI.SDL as SDL
 import qualified Graphics.UI.SDL.Image as SDL_Image
@@ -77,7 +78,9 @@ main = withInit [InitEverything] $ do
                              , Draw.spritesNumber = sNumber
                              }
 
-  let ds = Draw.DrawState { Draw.msgBuffer = [] }
+  now <- getCurrentTime
+  let ds = Draw.DrawState { Draw.msgBuffer = []
+                          , Draw.lastDrawn = now }
 
   let game = Game { ticks = 0
                   , player = Actor (14 * 16, 25 * 16 + 8) Dir.LEFT Dir.LEFT
@@ -164,6 +167,7 @@ drawAll game output = do
   drawTargets
   drawPoints
   drawMessages
+  Draw.info
 
   conf <- ask
   liftIO $ SDL.flip (Draw.surface conf)

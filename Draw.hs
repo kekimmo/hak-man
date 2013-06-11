@@ -7,6 +7,8 @@ import Control.Monad.State
 import Data.Maybe
 import Data.Digits
 import qualified Data.Map as Map
+import Data.Time
+import Text.Printf
 
 import qualified Actor 
 import Direction
@@ -36,7 +38,9 @@ data DrawConfig = DrawConfig { surface :: Surface
                              } deriving (Show)
 
 
-data DrawState = DrawState { msgBuffer :: [String] }
+data DrawState = DrawState { msgBuffer :: [String]
+                           , lastDrawn :: UTCTime
+                           }
 
 
 type Draw = ReaderT DrawConfig (StateT DrawState IO) 
@@ -77,6 +81,17 @@ number (x, y) i = do
   dest <- asks surface
   numbers <- asks spritesNumber
   liftIO $ blitSurface (numbers !! i) Nothing dest (Just $ Rect x y 0 0) 
+
+
+info :: Draw Bool
+info = do
+  ds <- get
+  let prev = lastDrawn ds
+  now <- liftIO getCurrentTime
+  let elapsed = diffUTCTime now prev 
+  let fps = round $ recip elapsed :: Int
+  put $ ds { lastDrawn = now }
+  text (printf "FPS: %d" fps)  (0, 0) 
 
 
 messages :: [String] -> Draw Bool
