@@ -115,15 +115,22 @@ createEnemy CLYDE = Actor (16 * tileSize, 13 * tileSize + 8) Dir.LEFT Dir.LEFT
 
 
 play :: Draw.DrawConfig -> Draw.DrawState -> Game -> IO ()
-play conf = eventLoop 
-  where eventLoop ds game = do
+play conf origDs origGame = do
+  startTime <- getCurrentTime
+  eventLoop startTime origDs origGame
+  where eventLoop :: UTCTime -> Draw.DrawState -> Game -> IO ()
+        eventLoop noBefore ds game = do
           ev <- pollEvent
           checkEvent ev
           where 
             checkEvent (NoEvent) = do
-              let (output, newGame) = runState step game
-              (_, newDs) <- Draw.run (drawAll newGame output) conf ds
-              eventLoop newDs newGame
+              now <- getCurrentTime
+              if now < noBefore then 
+                eventLoop noBefore ds game
+              else do
+                let (output, newGame) = runState step game
+                (_, newDs) <- Draw.run (drawAll newGame output) conf ds
+                eventLoop (addUTCTime (1/60) noBefore) newDs newGame
 
             checkEvent (KeyDown (Keysym key _ _)) = case key of
               SDLK_ESCAPE -> pushEvent Quit 
@@ -131,12 +138,12 @@ play conf = eventLoop
               SDLK_RIGHT -> trn Dir.RIGHT
               SDLK_UP -> trn Dir.UP
               SDLK_DOWN -> trn Dir.DOWN
-              _ -> eventLoop ds game
-              where trn d = eventLoop ds $ Game.setNextTurn d game
+              _ -> eventLoop noBefore ds game
+              where trn d = eventLoop noBefore ds $ Game.setNextTurn d game
 
             checkEvent (Quit) = return ()
 
-            checkEvent _ = eventLoop ds game
+            checkEvent _ = eventLoop noBefore ds game
 
 
 drawAll :: Game -> Output -> Draw.Draw () 
