@@ -94,25 +94,35 @@ info = do
   text (printf "FPS: %d" fps)  (0, 0) 
 
 
-messages :: [String] -> Draw Bool
-messages msgs = liftM and . mapM message $ msgs
+addMessage :: String -> Draw ()
+addMessage "" = return ()
+addMessage msg = do
+  ds <- get
+  put $ ds { msgBuffer = msg : msgBuffer ds } 
 
 
-message :: String -> Draw Bool
-message "" = return True
-message msg = do
+messages :: Draw Bool
+messages = do
   area <- asks msgR
   fn <- asks font
   dest <- asks surface
   ds <- get
   lineH <- liftIO $ TTF.fontLineSkip fn
-  buffer <- gets msgBuffer 
   color <- liftIO $ mapRGB (surfaceGetPixelFormat dest) 0 0 50
-  let newBuffer = msg : buffer
-  put $ ds { msgBuffer = newBuffer }
+  buffer <- gets msgBuffer 
+
+  -- Assume monospace
+  (letterW, letterH) <- liftIO $ TTF.utf8Size fn "a"
+
+  let maxW = rectW area `div` letterW
+
+  let breakLine "" = []
+      breakLine s = let (a, b) = splitAt maxW s in a : breakLine b
+
+  let brokenLines = foldr (\m ms -> ms ++ breakLine m) [] buffer
 
   let maxLines = rectH area `div` lineH
-  let visibleLines = reverse . take maxLines $ newBuffer
+  let visibleLines = reverse . take maxLines . reverse $ brokenLines
 
   liftIO $ fillRect dest (Just area) color
 

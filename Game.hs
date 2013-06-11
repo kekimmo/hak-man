@@ -50,7 +50,7 @@ type Phase = (EnemyMode, Integer)
 --phases :: Map.Map EnemyMode Integer
 phases :: [Phase]
 phases = [(SCATTER, 7 * 60)
-         ,(CHASE, 10 * 20 * 60)
+         ,(CHASE, 20 * 60)
          ]
 
 
@@ -287,7 +287,8 @@ step = do
     gotNewPhase <- liftM isJust mNewPhase
     newPhase <- liftM2 fromMaybe (gets phase) mNewPhase 
     let eMode = fst $ phases !! newPhase
-    let changedPhases = gotNewPhase || frightEnds
+    tick <- gets ticks
+    let changedPhases = gotNewPhase || frightEnds || tick == 0
     game <- get
     put $ game { phase = newPhase
                , timeInPhase = if changedPhases then 1 else timeInPhase game + 1

@@ -21,7 +21,7 @@ data Event = Message String
 
 toString :: Event -> String
 toString (Message s) = s
-toString (Order mo) = printf "All active enemies entered %s mode." $ show mo
+toString (Order mo) = printf "Enemy mode: %s." $ show mo
 toString Eaten = "Got eaten!"
 toString (AteEnemy enType) = printf "Ate %s." $ show enType
 toString (AtePill DOT) = printf "Ate a dot."

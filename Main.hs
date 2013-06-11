@@ -109,9 +109,9 @@ main = withInit [InitEverything] $ do
 
 createEnemy :: EnemyType -> Actor
 createEnemy BLINKY = Actor (14 * tileSize, 13 * tileSize + 8) Dir.LEFT Dir.LEFT
-createEnemy INKY = Actor (12 * tileSize, 13 * tileSize + 8) Dir.LEFT Dir.LEFT
-createEnemy PINKY = Actor (14 * tileSize, 13 * tileSize + 8) Dir.LEFT Dir.LEFT
-createEnemy CLYDE = Actor (16 * tileSize, 13 * tileSize + 8) Dir.LEFT Dir.LEFT
+createEnemy INKY = Actor (12 * tileSize + 3, 13 * tileSize + 8) Dir.LEFT Dir.LEFT
+createEnemy PINKY = Actor (14 * tileSize + 9, 13 * tileSize + 8) Dir.LEFT Dir.LEFT
+createEnemy CLYDE = Actor (16 * tileSize + 14, 13 * tileSize + 8) Dir.LEFT Dir.LEFT
 
 
 play :: Draw.DrawConfig -> Draw.DrawState -> Game -> IO ()
@@ -168,7 +168,8 @@ drawAll game events = do
       drawTarget (enType, t) = Draw.target enType t lev
       drawTargets = mapM_ drawTarget $ Map.assocs $ lastTargets game 
       drawPoints = Draw.points $ points game 
-      drawMessages = Draw.messages fmtdEvents 
+
+  mapM_ Draw.addMessage fmtdEvents
 
   Draw.bg
   drawPills
@@ -176,7 +177,7 @@ drawAll game events = do
   drawEnemies
   drawTargets
   drawPoints
-  drawMessages
+  Draw.messages
   Draw.info
 
   conf <- ask
